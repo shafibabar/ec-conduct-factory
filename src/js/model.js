@@ -1,9 +1,9 @@
-/* model.js — EC City Tour: what surveilling one communication actually costs.
+/* model.js — EC Factory Tour: what surveilling one communication actually costs.
  *
  * THE LESSON. Write this first, make it correct on its own. Every number the
  * panel shows comes from compute() below; nothing is pre-baked.
  *
- * Fidelity boundary (restated in the About modal and the README):
+ * Fidelity boundary (restated in the About modal):
  *
  *   Genuinely computed  S3 chunk sizing and wave count (port of
  *                       FileChunkingStrategy.maxAllowedChunkSizeBytes), Kafka
@@ -18,7 +18,7 @@
  *                       max-poll-records 50 where not overridden.
  *   Scaled              Cognition wait (real ceiling 9 000 000 ms compressed
  *                       to 3 s screen time), quota window, echo TTL.
- *   Faked               Building shapes, road textures, vehicle livery.
+ *   Faked               Factory floor shapes, belt textures, machine livery.
  */
 (function (global) {
   'use strict';
@@ -47,24 +47,29 @@
   var ECHO_TTL_DAYS    = 14;     // measured: ec-echo-engine-state TTL
   var PARTICIPANTS     = 6;      // ASSUMED: typical iusers+eusers per document
 
-  // KEDA per-service config (measured from cd/k8s ScaledObject in each repo)
+  // KEDA per-service config (measured from cd/k8s ScaledObject in each repo — Section 5e)
   var SERVICE_CFG = {
-    gateway:    { batch: 50,  conc: 1, minRep: 3, maxRep: 5,  lagThresh: 200  },
-    qualifier:  { batch: 50,  conc: 1, minRep: 3, maxRep: 5,  lagThresh: 200  },
-    filter:     { batch: 50,  conc: 1, minRep: 3, maxRep: 8,  lagThresh: 200  },
-    evaluator:  { batch: 50,  conc: 1, minRep: 3, maxRep: 8,  lagThresh: 200  },
-    quota:      { batch: 50,  conc: 1, minRep: 3, maxRep: 8,  lagThresh: 200  },
-    alerting:   { batch: 50,  conc: 1, minRep: 3, maxRep: 32, lagThresh: 1000 },
-    echo:       { batch: 10,  conc: 1, minRep: 3, maxRep: 5,  lagThresh: 200  },
-    indexer:    { batch: 50,  conc: 1, minRep: 3, maxRep: 5,  lagThresh: 150  },
-    audit:      { batch: 50,  conc: 1, minRep: 3, maxRep: 5,  lagThresh: 200  }
+    gateway:   { batch: 50, conc: 1, minRep: 3, maxRep: 32, lagThresh: 150  },
+    qualifier: { batch: 50, conc: 1, minRep: 3, maxRep: 32, lagThresh: 150  },
+    filter:    { batch: 50, conc: 1, minRep: 3, maxRep: 32, lagThresh: 150  },
+    evaluator: { batch: 50, conc: 1, minRep: 3, maxRep: 32, lagThresh: 150  },
+    quota:     { batch: 50, conc: 1, minRep: 3, maxRep: 32, lagThresh: 50   }, // tightest
+    alerting:  { batch: 50, conc: 1, minRep: 3, maxRep: 32, lagThresh: 1000 }, // loosest
+    echo:      { batch: 10, conc: 1, minRep: 3, maxRep: 32, lagThresh: 150  },
+    indexer:   { batch: 50, conc: 1, minRep: 3, maxRep: 5,  lagThresh: 150  },
+    audit:     { batch: 50, conc: 1, minRep: 3, maxRep: 32, lagThresh: 40   }, // tight: fan-in
+    reporting: { batch: 50, conc: 1, minRep: 3, maxRep: 32, lagThresh: 40   }  // tight: same
   };
 
-  // retry delays per service (measured from repos)
-  var RETRY0_MS = { gateway: 1000, qualifier: 1000, filter: 1000, evaluator: 1000,
-                    quota: 1000, alerting: 500, echo: 1000, indexer: 1000, audit: 500 };
-  var RETRY1_MS = { gateway: 2000, qualifier: 2000, filter: 2000, evaluator: 2000,
-                    quota: 2000, alerting: 1500, echo: 2000, indexer: 2000, audit: 2000 };
+  // retry delays per service (measured from repos — Section 5e)
+  var RETRY0_MS = {
+    gateway: 1000, qualifier: 1000, filter: 1000, evaluator: 1000,
+    quota: 1000, alerting: 500, echo: 1000, indexer: 1000, audit: 500, reporting: 500
+  };
+  var RETRY1_MS = {
+    gateway: 2000, qualifier: 2000, filter: 2000, evaluator: 2000,
+    quota: 2000, alerting: 1500, echo: 2000, indexer: 2000, audit: 2000, reporting: 2000
+  };
 
   /* ---- S3 download model (port of FileChunkingStrategy.maxAllowedChunkSizeBytes) */
 
@@ -87,22 +92,19 @@
       case 'gateway':
         v.bytesDownloaded  = docKb;
         v.bytesAfterMinify = docKb * MINIFY_RATIO;
-        return s3DownloadMs(docKb) + 5 /*S3_PUT_MS approx*/ + MONGO_WRITE_MS;
+        return s3DownloadMs(docKb) + 30 /*S3_PUT_MS*/ + MONGO_WRITE_MS;
 
       case 'qualifier':
         v.participants = PARTICIPANTS;
-        // one indexed Mongo lookup against pipeline-entity-mapping_{windowToken}
         return s3DownloadMs(docKb) + MONGO_READ_MS;
 
       case 'filter':
-        // ignore policies then flag policies per pipeline — 4 policies per pipeline avg
         var policies = v.pipelineCount * 4;
         return s3DownloadMs(docKb) + MONGO_READ_MS + POLICY_MS * policies;
 
       case 'evaluator':
         v.sentToCognition = Math.round(v.pipelineCount * p.contentPolicyShare / 100);
         if (v.sentToCognition > 0) {
-          // Cognition RTT scaled to screen time; real ceiling 9 000 000 ms
           v.comsWaitMs = Math.min(COGNITION_RTT_MS, COMS_TIMEOUT_MS);
         } else {
           v.comsWaitMs = 0;
@@ -110,38 +112,35 @@
         return TRIAGE_MS + KAFKA_PRODUCE_MS;
 
       case 'quota':
-        // atomic Redis increment + hash sampling
         v.quotaUsed  = v.quotaUsed + 1;
-        var quota    = Math.round(p.samplingPercent / 100 * 100); // expected vol = 100
+        var quota    = Math.round(p.samplingPercent / 100 * 100);
         v.quotaLimit = quota;
         v.sampled    = v.quotaUsed <= quota;
         return s3DownloadMs(docKb) + REDIS_INCR_MS + MONGO_WRITE_MS;
 
       case 'alerting':
         v.alertsCreated = v.sampled ? v.pipelineCount : 0;
-        // four parallel fetches: body from S3, populations, policy info, scenario hits
         return Math.max(s3DownloadMs(docKb), HTTP_ENRICH_MS) + MONGO_WRITE_MS;
 
       case 'echo':
-        // MD5 fingerprint of policy hits, one indexed Mongo lookup
         v.fingerprint = 'a3f7' + Math.round(v.pipelineCount * 1e4).toString(16);
-        v.isEcho = Math.random() < 0.08; // ~8% of alerts are echoes on a live thread
+        v.isEcho = Math.random() < 0.08;
         return MD5_MS + MONGO_READ_MS;
 
       case 'indexer':
-        // ES bulk batches: one flush per max-poll-records records
         v.batchPosition = (v.batchPosition || 0) + 1;
         v.bulkBytes = v.batchPosition * docKb * MINIFY_RATIO;
         var work = s3DownloadMs(docKb);
-        if (v.batchPosition >= 50) { // BATCH[ec-indexer] = 50
+        if (v.batchPosition >= 50) {
           work += ES_BULK_BASE_MS + v.bulkBytes / ES_BULK_KB_PER_MS;
           v.batchPosition = 0;
         }
         return work;
 
       case 'audit':
+      case 'reporting':
         v.auditEventsEmitted = (v.auditEventsEmitted || 0) + 1;
-        return MONGO_BULK_MS;
+        return MONGO_BULK_MS * Math.max(1, v.pipelineCount);
 
       default:
         return 2;
@@ -157,27 +156,18 @@
 
   /* ---- main compute call ------------------------------------------------ */
 
-  /* p = {ingestRate, avgDocSizeKb, contentPolicyShare, samplingPercent,
-   *      failureRate, autoscaling}
-   * Returns per-service work times, replica counts, and derived metrics.
-   */
   function compute(p) {
     var services = ['gateway','qualifier','filter','evaluator','quota',
-                    'alerting','echo','indexer','audit'];
-    var result = {};
-
-    // simulate one tick: arrival rate driving queue depth per service
-    // For display we compute the per-record work time at each station and
-    // derive replica count from that.
+                    'alerting','echo','indexer','audit','reporting'];
     var v = {
-      pipelineCount: 2, // expected matched pipelines per communication
+      pipelineCount: 2,
       bytesDownloaded: 0, bytesAfterMinify: 0,
       participants: 0,
       sentToCognition: 0, comsWaitMs: 0,
-      quotaUsed: Math.round(p.samplingPercent / 100 * 50), // ~midway through window
+      quotaUsed: Math.round(p.samplingPercent / 100 * 50),
       quotaLimit: 0, sampled: false,
       alertsCreated: 0, fingerprint: '', isEcho: false,
-      batchPosition: 25, // mid-batch for stable display
+      batchPosition: 25,
       bulkBytes: 0,
       auditEventsEmitted: 0,
       latencyMs: 0
@@ -190,7 +180,6 @@
       var cfg = SERVICE_CFG[s];
       var workMs = stationWork(s, v, p);
 
-      // retry overhead: failureRate * (RETRY0_MS + RETRY1_MS) per record
       var retryMs = 0;
       if (p.failureRate > 0) {
         var fr = p.failureRate / 100;
@@ -198,17 +187,10 @@
       }
 
       var totalWork = workMs + retryMs;
-
-      // throughput capacity per replica
       var tputPerReplica = (cfg.batch * 1000) / Math.max(1, totalWork);
-
-      // lag at this service from upstream ingest rate
       var lag = Math.max(0, p.ingestRate / tputPerReplica - 1) * cfg.batch;
       var replicas = scaleReplicas(cfg, lag, p.autoscaling);
-
-      // effective throughput with replicas
       var tput = replicas * tputPerReplica;
-      // queueing delay: time a record spends waiting in the topic
       var queueMs = lag > 0 ? (lag / Math.max(1, tput)) * 1000 : 0;
 
       totalMs += workMs + queueMs;
@@ -220,7 +202,6 @@
       });
     });
 
-    // Cognition wait is additive on top of evaluator if content policies exist
     var comsMs = v.comsWaitMs > 0 ? Math.min(COGNITION_RTT_MS, COMS_TIMEOUT_MS) : 0;
 
     return {
@@ -264,6 +245,7 @@
     SERVICE_CFG: SERVICE_CFG,
     ECHO_TTL_DAYS: ECHO_TTL_DAYS,
     COMS_TIMEOUT_MS: COMS_TIMEOUT_MS,
+    MINIFY_RATIO: MINIFY_RATIO,
     s3DownloadMs: s3DownloadMs,
     stationWork: stationWork,
     scaleReplicas: scaleReplicas,

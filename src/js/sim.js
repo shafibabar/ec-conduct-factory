@@ -1,12 +1,13 @@
-/* sim.js: EC City state machine — walks one communication through the city.
+/* sim.js: EC Factory state machine — walks one communication along the belt.
  *
- * Three ideas do all the work (same as the template engine):
- *   1. The vehicle moves along a route by distance; stations fire on arrival.
- *   2. The FIRST time a station fires, the vehicle stops for a reading stop.
- *   3. What the reader has already read lives outside the run state.
+ * Three ideas do all the work:
+ *   1. The carrier moves along the belt route by distance; stations fire on arrival.
+ *   2. The FIRST time a station fires, the carrier stops for a reading stop.
+ *   3. What the reader has already read lives outside the run state (tour object).
  *
- * The one branch: at the quota manager the vehicle goes to the 'alert' route
- * (sampled) or the 'audit' route (not sampled). advanceRoute() owns that fork.
+ * The one branch: at ec-surveillance-quota-manager (quota), if sampled the
+ * carrier continues to alerting; if not sampled, it jumps directly to
+ * ec-centralised-audit (skipping alerting, echo, and indexer).
  */
 (function (global) {
   'use strict';
@@ -42,6 +43,7 @@
     bytesAfterMinify: 0,
     participants:     0,
     pipelineCount:    2,
+    pipelineIds:      2,   // alias for narration interpolation
     sentToCognition:  0,
     comsWaitMs:       0,
     quotaUsed:        0,
@@ -72,10 +74,9 @@
   };
 
   var van = {
-    routeName: 'out',
     dist: 0,
     dwell: 0,
-    stationIdx: 0
+    stationIdx: 0    // index into World.STATIONS_FLAT
   };
 
   var listeners = [];
@@ -110,16 +111,15 @@
     var ms = ph ? ph.workMs + ph.queueMs : 2;
     state.charged[id] = ms;
     state.latencyMs += ms;
-    // Update vehicle state from model vehicle
     var v = state.plan.vehicle;
     if (id === 'gateway')   { state.bytesDownloaded = v.bytesDownloaded; state.bytesAfterMinify = v.bytesAfterMinify; }
-    if (id === 'qualifier') { state.participants = v.participants; }
+    if (id === 'qualifier') { state.participants = v.participants; state.pipelineIds = state.pipelineCount; }
     if (id === 'evaluator') { state.sentToCognition = v.sentToCognition; state.comsWaitMs = v.comsWaitMs; }
     if (id === 'quota')     { state.quotaUsed = v.quotaUsed; state.quotaLimit = v.quotaLimit; state.sampled = v.sampled; }
     if (id === 'alerting')  { state.alertsCreated = v.alertsCreated; }
     if (id === 'echo')      { state.fingerprint = v.fingerprint; state.isEcho = v.isEcho; }
     if (id === 'indexer')   { state.batchPosition = v.batchPosition; state.bulkBytes = v.bulkBytes; }
-    if (id === 'audit')     { state.auditEventsEmitted = (state.auditEventsEmitted || 0) + 1; }
+    if (id === 'audit' || id === 'reporting') { state.auditEventsEmitted = (state.auditEventsEmitted || 0) + 1; }
     return ph;
   }
 
@@ -132,10 +132,10 @@
     state.plan = planNow();
     state.fastForward = state.trips > 0;
     state.sampled = false;
-    // reset vehicle state for new trip
     state.bytesDownloaded  = 0;
     state.bytesAfterMinify = 0;
     state.participants     = 0;
+    state.pipelineIds      = state.pipelineCount;
     state.sentToCognition  = 0;
     state.comsWaitMs       = 0;
     state.quotaUsed        = 0;
@@ -143,10 +143,9 @@
     state.alertsCreated    = 0;
     state.fingerprint      = '';
     state.isEcho           = false;
-    state.batchPosition    = 25; // mid-batch for stable display
+    state.batchPosition    = 25;
     state.bulkBytes        = 0;
     state.auditEventsEmitted = 0;
-    van.routeName = 'out';
     van.dist = 0;
     van.stationIdx = 0;
     van.dwell = 0;
@@ -180,12 +179,11 @@
     alerting:  function () { charge('alerting'); },
     echo:      function () { charge('echo'); },
     indexer:   function () { charge('indexer'); },
-    audit:     function () { charge('audit'); state.auditEventsEmitted = (state.auditEventsEmitted || 0) + 1; }
+    audit:     function () { charge('audit'); },
+    reporting: function () { charge('reporting'); }
   };
 
   /* ---- update ----------------------------------------------------------- */
-
-  function routeOf(name) { return World.routes[name]; }
 
   function travelBoost() {
     return (state.fastForward ? 2.4 : 1) * (state.tourDone ? 3.0 : 1);
@@ -202,27 +200,28 @@
     emit('station', st.id);
   }
 
-  /* The one fork in the city: at quota manager, go to alert or audit. */
-  function advanceRoute() {
-    if (van.routeName === 'out') {
-      /* Sampled → full alert path; not sampled → short audit path */
-      van.routeName = state.sampled ? 'alert' : 'audit';
-      van.dist = 0;
-      van.stationIdx = 0;
-      van.dwell = 0.4;
-    } else if (van.routeName === 'alert' || van.routeName === 'audit') {
-      if (state.trips >= state.maxTrips) {
-        state.finished = true;
-        state.paused = true;
-        state.station = 'done';
-        emit('station', 'done');
-        return;
-      }
-      tour.done = true;
-      state.tourDone = true;
-      state.trips++;
-      beginTrip();
+  /* The one fork: after quota, skip alerting/echo/indexer when not sampled. */
+  function applyGate() {
+    if (!state.sampled) {
+      /* Jump to ec-centralised-audit (STATIONS_FLAT index 8) */
+      var auditIdx = World.STATION_IDX_BY_ID['audit'];
+      van.stationIdx = auditIdx;
+      van.dist = World.STATIONS_FLAT[auditIdx].dist - 0.1;
     }
+  }
+
+  function endTrip() {
+    if (state.trips >= state.maxTrips) {
+      state.finished = true;
+      state.paused = true;
+      state.station = 'done';
+      emit('station', 'done');
+      return;
+    }
+    tour.done = true;
+    state.tourDone = true;
+    state.trips++;
+    beginTrip();
   }
 
   function update(dt) {
@@ -232,16 +231,15 @@
     var sdt = dt * state.speed * travelBoost();
 
     if (van.dwell > 0) {
-      van.dwell -= dt * state.speed;   // reading stop: speed slider only
+      van.dwell -= dt * state.speed;
       state.dwellLeft = Math.max(0, van.dwell);
       if (van.dwell <= 0) { state.reading = false; state.dwellTotal = 0; }
       return;
     }
 
-    var route = routeOf(van.routeName);
     van.dist += BASE_SPEED * sdt;
 
-    var sts = World.stations[van.routeName] || [];
+    var sts = World.STATIONS_FLAT;
     if (van.stationIdx < sts.length) {
       var st = sts[van.stationIdx];
       if (van.dist >= st.dist) {
@@ -250,6 +248,8 @@
         var topic = World.stationToDistrict[st.id] || st.id;
         var firstTime = !tour.seen[topic];
         fire(st);
+        /* apply sorting gate AFTER fire so sampled state is set */
+        if (st.id === 'quota') applyGate();
         tour.seen[topic] = true;
         van.dwell = firstTime ? World.readSeconds(st.id) : st.dwell / dwellBoost();
         state.reading = firstTime;
@@ -260,11 +260,13 @@
       }
     }
 
-    if (van.dist >= route.total) advanceRoute();
+    if (van.stationIdx >= sts.length || van.dist >= World.BELT.total) {
+      endTrip();
+    }
   }
 
   function vanPosition() {
-    return Iso.smoothAt(routeOf(van.routeName), van.dist, 0.8);
+    return Iso.smoothAt(World.BELT, van.dist, 0.8);
   }
 
   global.Sim = {
