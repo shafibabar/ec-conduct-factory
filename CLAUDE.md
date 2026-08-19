@@ -1,4 +1,4 @@
-# EC City Explainer
+# EC Factory Explainer
 
 This repo builds a single isometric explorable explainer for the Smarsh Enterprise Conduct
 microservices platform, using the `isometric-explainer` skill.
