@@ -105,13 +105,14 @@
     ctx.stroke();
   }
 
-  /* Daylight shading: gentle steps between faces so pale surfaces keep their
-     colour instead of going muddy, the way a paper model reads. */
-  var TOP = 1.0, RIGHT = 0.89, LEFT = 0.76;
+  /* Daylight shading: a wide spread between the three faces so every solid
+     reads as a chunky object with a lit top and two clearly darker sides.
+     A narrow spread makes machinery read as a flat silhouette. */
+  var TOP = 1.0, RIGHT = 0.80, LEFT = 0.58;
 
-  /* Every solid gets a soft pencil outline; it is what makes the scene read as
-     a drawn diagram rather than a render. Pass edge:false to opt out. */
-  var DEFAULT_EDGE = 'rgba(88,78,64,0.30)';
+  /* A hard dark outline on every solid — machinery reading as stamped, chunky
+     objects rather than as a soft render. Pass edge:false to opt out. */
+  var DEFAULT_EDGE = 'rgba(12,10,8,0.55)';
 
   /* An axis-aligned box. o = {x,y,z,w,d,h,color,windows,panels,alpha,edge} */
   function box(ctx, o) {

@@ -2,7 +2,7 @@
  *
  * The belt carries a single communication from the archive input through the
  * surveillance data path (Flows A and B). At the quota-manager sorting gate the
- * carrier either continues to alerting (sampled) or jumps straight to audit
+ * carrier either continues to alerting (sampled) or ends its journey there
  * (not sampled, skipping alerting/echo/indexer).
  *
  * All 21 repositories appear: 10 on the belt, 11 as side structures.
@@ -15,7 +15,10 @@
   var Iso = global.Iso;
   var makeRoute = Iso.makeRoute;
 
-  var GW = 78, GH = 54;
+  /* GH came down from 54 when the belt lost its third run: the bottom of the
+     slab was left with nothing on it. The reporting-corner side structures
+     moved up into what remained, which is where they belong anyway. */
+  var GW = 78, GH = 48;
 
   /* ---- belt route --------------------------------------------------------
    * Waypoint indices (used to anchor stations via route.cum[i]):
@@ -25,9 +28,18 @@
    *  16:(26,46) 17:(38,46) 18:(52,46)
    * cum[1]=8, cum[2]=18, ..., cum[5]=48, cum[9]=88, cum[16]=158, cum[17]=170
    */
+  /* A U, not a snake. The third run went when ec-centralised-audit and
+     ec-reporting came off the line: the document's own path ends at the
+     indexer, and the record keeper is not a step in it. What the U encloses is
+     the records precinct — see FLOOR-TOPOLOGY.md D1/D2.
+
+     cum[1]=8 gateway, [2]=18 qualifier, [3]=28 filter, [4]=38 evaluator,
+     [6]=64 quota (on the turn), [8]=80 alerting, [9]=90 echo, [10]=100 indexer,
+     total 106 with a short run-out past the last machine. */
   var BELT = makeRoute([
-    [6,8],[14,8],[24,8],[34,8],[44,8],[54,8],[64,8],[64,18],[64,28],
-    [54,28],[44,28],[34,28],[24,28],[14,28],[14,38],[14,46],[26,46],[38,46],[52,46]
+    [6,8],[14,8],[24,8],[34,8],[44,8],[60,8],
+    [60,18],[60,28],
+    [54,28],[44,28],[34,28],[28,28]
   ]);
 
   /* ---- palette ----------------------------------------------------------- */
@@ -56,16 +68,55 @@
   /* ---- stations on the belt --------------------------------------------- */
 
   var STATIONS_FLAT = [
-    { id:'gateway',   dist: BELT.cum[1],  x:14, y:2,  w:5,d:3,h:3, kind:'machine', dwell:1.6, color:C.gateway },
-    { id:'qualifier', dist: BELT.cum[2],  x:24, y:2,  w:5,d:3,h:3, kind:'machine', dwell:1.4, color:C.qualifier },
-    { id:'filter',    dist: BELT.cum[3],  x:34, y:2,  w:5,d:3,h:3, kind:'machine', dwell:1.4, color:C.filter },
-    { id:'evaluator', dist: BELT.cum[4],  x:44, y:2,  w:5,d:3,h:3, kind:'machine', dwell:1.8, color:C.evaluator },
-    { id:'quota',     dist: BELT.cum[5],  x:54, y:12, w:5,d:3,h:3, kind:'gate',    dwell:1.6, color:C.quota },
-    { id:'alerting',  dist: BELT.cum[9],  x:54, y:32, w:5,d:3,h:3, kind:'machine', dwell:1.6, color:C.alerting },
-    { id:'echo',      dist: BELT.cum[10], x:44, y:32, w:5,d:3,h:3, kind:'machine', dwell:1.2, color:C.echo },
-    { id:'indexer',   dist: BELT.cum[11], x:34, y:32, w:5,d:3,h:3, kind:'machine', dwell:1.2, color:C.indexer },
-    { id:'audit',     dist: BELT.cum[16], x:26, y:50, w:5,d:3,h:3, kind:'machine', dwell:1.4, color:C.audit },
-    { id:'reporting', dist: BELT.cum[17], x:38, y:50, w:5,d:3,h:3, kind:'machine', dwell:1.2, color:C.reporting }
+    /* w/d is the reserved footprint, not the casing: the intake press runs
+       from the archive mast at x 8.5 to the watermark standpipe at x 18.7,
+       and buildProps() must keep the whole assembly clear. render.js draws
+       it from explicit coordinates. */
+    { id:'gateway',   dist: BELT.cum[1],  x:14, y:2,  w:10.4,d:5.2,h:3.3, kind:'machine', dwell:1.6, color:C.gateway },
+    /* Reserved floor area, not the casing — the comparator runs from the
+       S3 riser at x 20.1 to the receipt duct at x 26.8. */
+    { id:'qualifier', dist: BELT.cum[2],  x:24, y:2,  w:8.5,d:5.2,h:3.0, kind:'machine', dwell:1.4, color:C.qualifier },
+    /* Reserved floor area: the screening line runs from the S3 riser at
+       x 29.9 to the receipt duct at x 37.3. */
+    { id:'filter',    dist: BELT.cum[3],  x:34, y:2,  w:9.0,d:5.2,h:3.0, kind:'machine', dwell:1.4, color:C.filter },
+    /* Reserved floor area: the router runs from the splitter at x 39.9 to
+       the receipt duct at x 47.3, with the COMS return line above it. */
+    { id:'evaluator', dist: BELT.cum[4],  x:44, y:2,  w:9.0,d:5.2,h:3.0, kind:'machine', dwell:1.8, color:C.evaluator },
+    /* Moved north of the belt with the rest of the upstream row. It used to
+       stand at y 12 — south of the line, where a solid can occlude the
+       carrier — and it is the one station the carrier is diverted AT, so
+       it is the last one that should be fighting the belt for depth. */
+    /* On the turn, inside the U. The west side of a vertical run has the
+       smaller x+y key, so it is drawn before the carrier and is safe at any
+       size — FLOOR-TOPOLOGY.md D6. The machine itself is unrotated; only its
+       transfer bays turn, to axis 'x'. */
+    { id:'quota',     dist: BELT.cum[6],  x:53, y:16.3, w:9.0,d:5.2,h:3.0, kind:'gate',    dwell:1.6, color:C.quota },
+    /* South of their run, which is the side that has to earn its place: a
+       machine north of a belt is drawn before the carrier and is safe at any
+       height, one south of it is drawn after and can paint over the carrier.
+       No overlap needs h < (15·(northEdge − beltY) + 12) / 20, so at y 36 a
+       first-pass 5x3 clears anything under 5.4 units and a rebuilt 9x5.2 clears
+       anything under 4.6. They were at y 32, where the rebuilt size would not
+       have cleared at all. */
+    { id:'alerting',  dist: BELT.cum[8],  x:54, y:36, w:9.0,d:6.6,h:3.0, kind:'machine', dwell:1.6, color:C.alerting },
+    { id:'echo',      dist: BELT.cum[9],  x:44, y:36, w:9.0,d:6.6,h:3.0, kind:'machine', dwell:1.2, color:C.echo },
+    { id:'indexer',   dist: BELT.cum[10], x:34, y:36, w:9.0,d:7.6,h:3.0, kind:'machine', dwell:1.2, color:C.indexer }
+  ];
+
+  /* ---- off the belt ------------------------------------------------------
+   * The record keepers. They consume events ABOUT the communication, so the
+   * communication never travels to them — putting them on the conveyor was the
+   * floor telling a small lie. They stand inside the U instead, with the line
+   * running around them.
+   *
+   * Same shape as a station minus `dist`: render.js dispatches them through
+   * OFFBELT_DRAW and they are never fired by the simulation.
+   * -------------------------------------------------------------------- */
+  var OFFBELT = [
+    { id:'audit',     x:32, y:19.2, w:6.8,d:4.0,h:6.6, color:C.audit,
+      label:'audit',     sublabel:'ec-centralised-audit · the tower' },
+    { id:'reporting', x:42, y:21.5, w:5,d:3,h:3, color:C.reporting,
+      label:'reporting', sublabel:'ec-reporting' }
   ];
 
   var STATION_IDX_BY_ID = {};
@@ -83,8 +134,8 @@
     { id:'actioningservice',x:66, y:36, w:7,d:5,h:3, color:C.actioning, label:'conduct-actioning-service',      sublabel:'disposition executor' },
     { id:'actioninglib',    x:66, y:44, w:5,d:3,h:2, color:C.actioning, label:'conduct-actioning',              sublabel:'lib · in-process at portal' },
     { id:'conductaudit',    x:50, y:52, w:5,d:4,h:2, color:C.reports,   label:'ec-conduct-audit-service',       sublabel:'audit store manager' },
-    { id:'reports',         x:58, y:52, w:6,d:4,h:3, color:C.reports,   label:'conduct-reports',                sublabel:'administrative reports' },
-    { id:'compliance',      x:66, y:52, w:6,d:4,h:3, color:C.reports,   label:'ec-compliance-report',           sublabel:'regulator CSV · Flow H' }
+    { id:'reports',         x:31, y:42, w:6,d:4,h:3, color:C.reports,   label:'conduct-reports',                sublabel:'administrative reports' },
+    { id:'compliance',      x:41, y:42, w:6,d:4,h:3, color:C.reports,   label:'ec-compliance-report',           sublabel:'regulator CSV · Flow H' }
   ];
 
   /* Cognition island — small external compound north of the evaluator. */
@@ -101,92 +152,106 @@
       id:'gateway', name:'ec-gateway', x:16, y:2,  r:4.5, color:C.gateway,
       tag:'archive → miniIndexable · CDC outbox',
       short:'The archive announces a communication; ec-gateway downloads the full JSON from S3 in parallel byte-range chunks, strips the message body, and writes a small metadata object plus one audit ledger row.',
-      body:'It arrived at {bytesDownloaded} KB and leaves at {bytesAfterMinify} KB — the body is both too large to fan out to nine services and too sensitive to copy widely. ' +
-        'The download uses the FileChunkingStrategy: for a document larger than 5 MB, chunks are fetched in parallel up to 25 concurrent streams. ' +
+      /* No literal unit after these two: interpolate() formats them through
+         fmtKb, which already carries KB/MB — and picks MB for a large doc. */
+      body:'It arrived at {bytesDownloaded} and leaves at {bytesAfterMinify} — the body is both too large to fan out to nine services and too sensitive to copy widely. ' +
+        'The download uses the FileChunkingStrategy: the object is cut into 5 MB byte ranges fetched in parallel, up to 25 concurrent streams, and past that ceiling it comes back for a second wave. ' +
+        'The 25 lamps on the press casing are that ceiling, one lamp per stream. ' +
         'The ledger row carries a reconciliation token so that later the platform can answer "how many communications did you take in?" with an exact integer. ' +
-        'Debezium publishes the outbox row onto the ingestedCommunication topic. ' +
-        'Drag Doc Size up and watch the S3 download time grow in the bar chart.'
+        'Debezium publishes the outbox row onto the ingestedCommunication topic — the pickup head reading the printed strip. ' +
+        'Drag Doc up: the chunk plan on the readout, the billet under the ram and the S3 time in the bar chart all move together.'
     },
     {
       id:'qualifier', name:'ec-queue-qualifier', x:24, y:2,  r:4.5, color:C.qualifier,
       tag:'participant extraction · pipeline routing',
       short:'ec-queue-qualifier streams the participant list out of the document and intersects it with a frozen snapshot of every monitored population, producing the list of surveillance pipelines that claim this communication.',
-      body:'{participants} participants found, matched {pipelineIds} surveillance pipeline(s). ' +
+      body:'{participants} participants streamed out of the document; {matchedEntities} of them are in the monitored population, and they matched {pipelineIds} surveillance pipeline(s). ' +
+        'The rest are not rejected so much as never returned: the intersection is one indexed query against pipeline-entity-mapping_{windowToken}, and an id that is not in that collection simply does not come back. ' +
+        'That query costs the same whatever the length of the list — drag People and the machine fills up while the bar chart does not move. ' +
         'A pipeline is one named review queue — one compliance team\'s inbox. ' +
-        'The intersection is performed against pipeline-entity-mapping_{windowToken}, a MongoDB collection that is a frozen photograph of who was under surveillance when this window opened. ' +
-        'A zero match is not silence: it is published as an audited not-qualified outcome, because proving that nobody was being watched is part of the regulatory record. ' +
+        'A zero match is not silence: it is published as an audited not-qualified outcome, because proving that nobody was being watched is part of the regulatory record. Drag People to zero to take that exit. ' +
         'The windowToken is the key: it prevents a midday policy change from retroactively re-categorising this morning\'s emails.'
     },
     {
       id:'filter', name:'ec-surveillance-filter', x:34, y:2,  r:4.5, color:C.filter,
       tag:'ignore policies · flag policies · per pipeline',
       short:'Each pipeline\'s screens run in a fixed order: ignore policies first to suppress noise, then flag policies to select genuinely reviewable content. The same message can be reviewable in one queue and ignored in another.',
-      body:'Suppression always wins — an ignored communication is never offered to the flag policies at all. ' +
-        'The vehicle now carries one verdict per pipeline rather than one verdict overall: FILTERED, QUALIFIED, or NOT_QUALIFIED. ' +
-        'ec-surveillance-filter also handles the not-qualified exit to ec-surveillance-quota-manager for accounting, so the audit trail is complete regardless of outcome. ' +
-        'Drag the content policy share slider down to zero and watch the evaluator station cost collapse — most of that cost is waiting for Cognition to answer.'
+      body:'{filtered} FILTERED, {qualified} QUALIFIED, {notQualified} NOT_QUALIFIED across the {pipelineIds} claiming pipeline(s) — one verdict each, decided independently. ' +
+        'Suppression always wins: an ignored communication is never offered to the flag policies at all, and the two screens on the machine are numbered and bolted in that order because reordering them silently changes results. ' +
+        'The config load and the chunked document fetch run concurrently, which is why both supply lines light on the same stroke. ' +
+        'FILTERED and NOT_QUALIFIED are different reasons that publish to the same topic — …not-qualified, which ec-surveillance-quota-manager consumes for accounting only — so the audit trail is complete regardless of outcome. ' +
+        'Drag Ignore% to 100 and nothing qualifies: the record skips evaluation entirely and is counted at the gate.'
     },
     {
       id:'evaluator', name:'ec-surveillance-policy-evaluator', x:44, y:2,  r:4.5, color:C.evaluator,
       tag:'metadata local · content → Cognition · COMS async',
       short:'Policies answerable from metadata alone are decided here in milliseconds; policies needing the message body are sent to Cognition, an external analytics platform, whose verdicts return asynchronously on a separate topic.',
-      body:'{sentToCognition} pipeline(s) currently out for content evaluation; the wait stands at {comsWaitMs} against a hard ceiling of 9,000,000 ms — about two and a half hours — after which the outcome is recorded as a timeout rather than lost. ' +
+      body:'{metadataOnly} verdict(s) answered here from metadata alone, in milliseconds, and stamped into Cognition\'s own response shape — the platform manufactures the reply it would otherwise have waited for. ' +
+        '{sentToCognition} went out for content evaluation, and the wait stands at {comsRttMs} against a hard ceiling of 9,000,000 ms — about two and a half hours. ' +
         'This station is a router and a timekeeper: it never judges content itself. ' +
-        'The CIMS payload goes out on the tenant\'s Cognition topic; the COMS response arrives on samplingTopic_k8s and is matched by the correlation id. ' +
-        'A metadata-only path (content policy share = 0%) skips this entirely.'
+        'The CIMS payload goes out on the tenant\'s Cognition topic; the COMS response arrives on samplingTopic_k8s, on its own line rather than the belt, and is matched by the correlation id — a non-V3 run mode is dropped by design. ' +
+        'This is the only latency in the platform that EC\'s own code does not bound. Push Cognition past the ceiling and the slots on the wait rack fill through the red line: the outcome is recorded as no-coms-timedout, which is audited rather than lost, but those communications never reach sampling at all.'
     },
     {
-      id:'quota', name:'ec-surveillance-quota-manager', x:56, y:14, r:4.5, color:C.quota,
+      id:'quota', name:'ec-surveillance-quota-manager', x:53, y:16.3, r:5.0, color:C.quota,
       tag:'SORTING GATE · atomic Redis · sampled or audit-only',
       short:'This is where the platform decides whether a human will ever read this communication. A single atomic Redis INCR, shared by every replica, prevents thirty-two replicas from together exceeding the quota.',
-      body:'The counter reads {quotaUsed} of {quotaLimit} for this pipeline\'s bucket — and comes from a single atomic Redis increment, so the decision is consistent across a horizontally-scaled fleet. ' +
-        'Verdict: {sampled}. ' +
-        'Being unsampled is itself an audited outcome with a stored reason — it is never silence. ' +
-        'From here, sampled communications continue to the alerting machine. Not-sampled communications skip to ec-centralised-audit directly. ' +
-        'Drag Sampling % down to watch the carrier take the short route more often.'
+      body:'Sampling is two conditions ANDed against one counter, and a scope check before either of them. ' +
+        'The profile\'s participant filters run first: fail them and the outcome is ignored, recorded, and the quota is never spent — which is why an ignored record leaves the counter where it was. ' +
+        'Then the bucket. Its key is four things at once — pipeline, population, direction and the hour the message was sent — and this one reads {bucketKey}. ' +
+        'redis.incr on that bucket returns {quotaUsed} against a limit of {quotaLimit}, and because the increment is atomic, thirty-two replicas share the one number rather than each keeping their own. ' +
+        'Second condition: hash({gcid}) % 100 = {hashBucket}, which has to land under the sampling percentage. Both must pass. ' +
+        'Verdict: {quotaEvent}. Being unsampled is itself an audited outcome with a stored reason — it is never silence. ' +
+        'Sampled communications continue to alerting. Everything else stops here — the journey ends, and only the receipt goes on to ec-centralised-audit, by a route the carrier never takes. ' +
+        'Watch three trips at the same settings: the counter barely moves, but the hash decides differently each time.'
     },
     {
-      id:'alerting', name:'ec-alerting-service', x:52, y:34, r:4.5, color:C.alerting,
+      id:'alerting', name:'ec-alerting-service', x:54, y:36, r:5.0, color:C.alerting,
       tag:'four parallel enrichments · SupervisedItem · outbox write',
-      short:'An alert is assembled rather than merely recorded: four data sources are fetched in parallel and written as a durable SupervisedItem document that will sit in a reviewer\'s queue.',
-      body:'Four sources fetched simultaneously: the message body from S3, the monitored populations from the qualifier, the policy detail from the filter, and the Cognition scenario hits from ea-storage. ' +
+      short:'An alert is assembled rather than merely recorded: four data sources are fetched in parallel and built into a durable SupervisedItem document that will sit in a reviewer\'s queue.',
+      body:'Four sources fetched simultaneously — the message body from S3, the monitored populations from ec-queue-qualifier, the policy detail from ec-surveillance-filter, and the scenario hits from EA Storage. Three of those are REST calls to other machines on this floor, and the feeds are coloured for where each comes from. ' +
+        'Because they run in parallel the station costs the SLOWEST of them rather than their sum: S3 {enrichS3Ms} against REST {enrichRestMs}, so it pays {enrichMs}. Drag Doc and watch which one becomes the bottleneck. ' +
         '{alertsCreated} alert(s) created — one per sampled pipeline, because the same communication can be reviewable in two different queues for two different reasons. ' +
-        'ec-alerting-service CREATES the supervised_item document in MongoDB. ' +
-        'Later, conduct-actioning-service MUTATES that same document when a reviewer dispositions it — one of only two shared-write relationships in the platform. ' +
-        'The alert and its outbox row are written together so an alert cannot exist in a queue without also being announced downstream.'
+        'The supervised item and its outbox row are written in PARALLEL, not in sequence, and a partial failure can therefore leave an item nobody was told about. The outbox is the source of truth for downstream publication, which is why it is the press marked as such. ' +
+        'ec-alerting-service CREATES the supervised_item document; months later conduct-actioning-service MUTATES that same document when a reviewer dispositions it — one of only two shared-write relationships in the platform. ' +
+        'It is also the one machine on the belt that emits no audit event at all: its accounting arrives second-hand through echo and the indexer, and the duct pad on its apron is bolted shut. Its lagThreshold of 1000 is the loosest on the floor — push Ingest up and every other replica rack grows while this one stays at three.'
     },
     {
-      id:'echo', name:'ec-echo-engine', x:42, y:34, r:4.5, color:C.echo,
+      id:'echo', name:'ec-echo-engine', x:44, y:36, r:4.5, color:C.echo,
       tag:'MD5 fingerprint · 14-day TTL · echo suppression',
       short:'The echo engine asks whether this alert is genuinely new by comparing a 32-character MD5 digest of the policy hits against every fingerprint seen on this thread in the last 14 days.',
-      body:'Fingerprint for this communication: {fingerprint}. Echo status: {isEcho}. ' +
-        'On a long email thread re-scanned after every reply, the same surveillance scenario would raise an alert for every message. ' +
-        'The echo engine prevents that with one indexed MongoDB lookup against the ec-echo-engine-state collection, which has a TTL index for the 14-day window. ' +
-        'If it is an echo, the earlier alert is re-opened and updated rather than a new one created — the reviewer reads one alert, not thirty. ' +
-        'The fingerprint is an MD5 of the sorted policy hit IDs, not of the message content.'
+      body:'Fingerprint {fingerprint}, {echoPriors} prior alert(s) on this thread inside the window, outcome: {echoOutcome}. ' +
+        'On a long email thread re-scanned after every reply, the same surveillance scenario would raise an alert for every message. The echo engine prevents that with one indexed lookup against ec-echo-engine-state, keyed pipeline|thread|fingerprint with a TTL index for the 14-day window. ' +
+        'The fingerprint is an MD5 of the SORTED policy hit IDs — sorted, so the same hits in a different order still match — and never of the message content. This station does not open the document at all, which is why the body port on it is capped. ' +
+        'The card is filed BEFORE the comparison runs, not after. That ordering is the failure mode: a crash between the two leaves a candidate with no action, and the next alert on the thread still suppresses correctly. ' +
+        'There are three answers, not two. Nothing earlier and it is new; something earlier and this alert closes; something LATER and the alert already published is reclassified instead of this one — that is how a late arrival is handled. ' +
+        'It publishes nothing onto the belt: the answer goes back east to ec-alerting-service as an echoAction, and the receipt goes down the trench.'
     },
     {
-      id:'indexer', name:'ec-indexer', x:32, y:34, r:4.5, color:C.indexer,
+      id:'indexer', name:'ec-indexer', x:34, y:36, r:4.5, color:C.indexer,
       tag:'bulk batch → Elasticsearch · audio child doc',
       short:'Indexing deliberately does not write one document at a time: the indexer fills a batch of up to 50 records and flushes them as a single Elasticsearch bulk request.',
-      body:'This communication is position {batchPosition} in a batch carrying {bulkBytes} of payload. ' +
-        'Audio calls get a second child document holding the transcript attached to the same parent — both are indexed in the same bulk request. ' +
-        'ec-indexer CREATES the Elasticsearch review document. ' +
-        'Later, conduct-actioning-service UPDATES that document when a reviewer acts — one of only two shared-write relationships in the platform. ' +
-        'Batching buys efficiency at the cost of blast radius, so a single poison record is retried alone rather than holding back the other 49.'
+      body:'Position {batchPosition} of 50, in a batch carrying {bulkBytes} of payload. Most communications cost this station nothing; every fiftieth pays for all fifty, and the bar chart shows it. ' +
+        'The document is fetched from S3 a SECOND time here, using the same FileChunkingStrategy ec-gateway uses — ported verbatim, which is why the same 25-lamp concurrency matrix appears on both machines. ' +
+        'The parent index name is one cached REST lookup. Audio calls get a second child document holding the transcript, attached to the same parent and indexed in the same request. ' +
+        'Batching buys throughput at the cost of blast radius, and per-record fate is what limits it: a poison record in a batch of fifty is retried ALONE, on its own siding, while the other forty-nine go through. ' +
+        'An empty S3 object never enters the bulk at all — it leaves over REST to ea-indexing-gateway, which is the bypass on the apron. ' +
+        'ec-indexer CREATES the Elasticsearch review document; months later conduct-actioning-service UPDATES it when a reviewer acts — one of only two shared-write relationships in the platform. ' +
+        'Its maxReplicaCount is 5 in the standard overlays, the lowest ceiling on the floor: Elasticsearch is the thing you cannot scale by adding consumers.'
     },
     {
-      id:'audit', name:'ec-centralised-audit', x:24, y:52, r:4.5, color:C.audit,
+      id:'audit', name:'ec-centralised-audit', x:32, y:19, r:4.5, color:C.audit,
       tag:'audit stitching · reconciliation watermark · ShedLock',
-      short:'Every verdict so far is mirrored here as an audit event and stitched into one record per communication, marked complete only when all pipelines reach a terminal outcome.',
+      short:'Off the belt, and deliberately so: the communication never travels here. Every verdict is mirrored to this place as an audit EVENT, stitched into one record per communication, and marked complete only when all pipelines reach a terminal outcome.',
       body:'{auditEventsEmitted} audit receipt(s) filed for this communication. ' +
+        'It stands inside the loop the belt makes, because it is not a step in the path — it is what the path reports to. Seven of the eight upstream machines send it a receipt; ec-alerting-service is the exception, and its accounting arrives second-hand through echo and the indexer. ' +
         'ec-centralised-audit receives events from every upstream stage — not-qualified, filtered, evaluated, sampled, not-sampled, alerted, echo-closed, indexed. ' +
         'Every 15 minutes a ShedLock-guarded cron compares the number of completed communications against the gateway\'s ingest watermark for the same reconciliation token. ' +
         'Agreement between two independently produced counts is what "we can prove it" means in regulated surveillance. ' +
         'Its lagThreshold is 40 (the tightest of all consumers) because it receives several audit events per communication.'
     },
     {
-      id:'reporting', name:'ec-reporting', x:36, y:52, r:4.5, color:C.reporting,
+      id:'reporting', name:'ec-reporting', x:42, y:21.5, r:4.5, color:C.reporting,
       tag:'per-pipeline counters · window-suffixed collections',
       short:'ec-reporting counts each audit event into a window-suffixed collection so a window\'s numbers can never be mixed with another\'s. Every 15 minutes a ShedLock cron re-aggregates per-pipeline totals.',
       body:'The counts stored here are what the monthly compliance report (ec-compliance-report) reads alongside the Elasticsearch review index — so an indexing failure and a disposition failure both change the numbers a regulator sees. ' +
@@ -317,23 +382,338 @@
   var _built = false;
   function build() { _built = true; }
 
-  /* Expose an empty arrays that city-style code might iterate over. */
-  var buildings = [];
+  /* ---- props: the floor furniture ----------------------------------------
+   *
+   * The slab was bare, which made the plant read as a diagram floating in
+   * space rather than a building standing on a site. None of this is part of
+   * the model — it is here so the mechanism has somewhere to happen.
+   *
+   * Everything is placed through blocked(), which keeps props off the belt,
+   * out of every footprint, and clear of the Cognition pad. Nothing may
+   * occlude the carrier, so the belt clearance is generous.
+   * ---------------------------------------------------------------------- */
+
   var props = [];
+
+  /* Perpendicular distance from (x, y) to the nearest point on the belt. */
+  function distToBelt(x, y) {
+    var best = 1e9, i, s, dx, dy, t, px, py;
+    for (i = 0; i < BELT.segs.length; i++) {
+      s = BELT.segs[i];
+      dx = s.b.x - s.a.x; dy = s.b.y - s.a.y;
+      t = ((x - s.a.x) * dx + (y - s.a.y) * dy) / (dx*dx + dy*dy || 1);
+      t = Math.max(0, Math.min(1, t));
+      px = s.a.x + dx * t; py = s.a.y + dy * t;
+      best = Math.min(best, Math.hypot(x - px, y - py));
+    }
+    return best;
+  }
+
+  /* Footprint test only — no belt clearance. Thin props that belong beside the
+     belt (the stanchion line) use this, because they are a few centimetres wide
+     and cannot hide the carrier the way a building would. */
+  function blockedByStructure(x, y, pad) {
+    var i, m;
+    /* belt machines: x,y is the centre */
+    for (i = 0; i < STATIONS_FLAT.length; i++) {
+      m = STATIONS_FLAT[i];
+      if (Math.abs(x - m.x) < m.w/2 + 1.2 + pad &&
+          Math.abs(y - m.y) < m.d/2 + 1.2 + pad) return true;
+    }
+    /* side structures: x,y is the NW corner */
+    for (i = 0; i < SIDE_STRUCTS.length; i++) {
+      m = SIDE_STRUCTS[i];
+      if (x > m.x - 1.2 - pad && x < m.x + m.w + 1.2 + pad &&
+          y > m.y - 1.2 - pad && y < m.y + m.d + 1.2 + pad) return true;
+    }
+    /* off-belt structures: x,y is the centre, as for a station */
+    for (i = 0; i < OFFBELT.length; i++) {
+      m = OFFBELT[i];
+      if (Math.abs(x - m.x) < m.w/2 + 1.2 + pad &&
+          Math.abs(y - m.y) < m.d/2 + 1.2 + pad) return true;
+    }
+    /* the Cognition pad sits off the main floor and stays clear */
+    if (x > COG_FLOOR.x - 3 && x < COG_FLOOR.x + COG_FLOOR.w + 3 &&
+        y > COG_FLOOR.y - 3 && y < COG_FLOOR.y + COG_FLOOR.d + 3) return true;
+    return false;
+  }
+
+  /* The rule for anything with real bulk: keep well clear of the belt so the
+     carrier is never hidden behind it. */
+  function blocked(x, y, pad) {
+    if (distToBelt(x, y) < 3.2 + pad) return true;
+    if (nearTrench(x, y, pad)) return true;
+    return blockedByStructure(x, y, pad);
+  }
+
+  function onSlab(x, y) { return x > 1 && x < GW - 1 && y > 1 && y < GH - 1; }
+
+  /* Flat floor paint. Kept separate from props because a decal must be laid
+     down straight after the belt, before any solid — sorted into the main pass
+     it would sometimes paint over the machine standing in front of it. */
+  var decals = [];
+
+  /* ---- the receipt relay --------------------------------------------------
+   *
+   * Seven machines report to ec-centralised-audit and one does not:
+   * ec-alerting-service produces no audit event at all, so it has no line, and
+   * that absence is meant to be visible.
+   *
+   * Receipts travel BELOW grade. A trench is a cut into the slab rather than
+   * paint on it, so it passes under the belt without ever contending with the
+   * carrier for depth — which is the only reason a network can reach the middle
+   * of the floor from both sides of the line. Drawn before the belt.
+   *
+   * It is a common trench with branches, not point-to-point cabling: four
+   * branches drop onto a north spine, two onto a south one, and each spine
+   * feeds a riser into a face of the tower. ec-gateway's branch starts under
+   * its CDC pickup head rather than a receipt duct, because its relay to audit
+   * IS the outbox that Debezium publishes.
+   *
+   * `src` lists the machines whose receipts use a segment; a segment glows only
+   * while one of them is sending.
+   * -------------------------------------------------------------------- */
+  var TOWER = { x: 32, y: 19 };
+
+  var RELAY = {
+    trench: [
+      /* branches down from the top row, crossing the belt at y 8 */
+      { src:['gateway'],   x0:17.8, y0:3.60,  x1:17.8, y1:12.5 },
+      { src:['qualifier'], x0:27.2, y0:4.60,  x1:27.2, y1:12.5 },
+      { src:['filter'],    x0:37.6, y0:5.10,  x1:37.6, y1:12.5 },
+      { src:['evaluator'], x0:47.3, y0:5.10,  x1:47.3, y1:12.5 },
+      /* the north spine, flowing inward to the riser from both ends */
+      { src:['gateway','qualifier'],  x0:17.8, y0:12.5, x1:32.0, y1:12.5 },
+      { src:['filter','evaluator'],   x0:47.3, y0:12.5, x1:32.0, y1:12.5 },
+      { src:['gateway','qualifier','filter','evaluator'],
+        x0:32.0, y0:12.5, x1:32.0, y1:17.05, riser:true },
+
+      /* the quota manager comes in along the tower's east face */
+      { src:['quota'],     x0:57.1, y0:18.85, x1:35.56, y1:18.85 },
+
+      /* The middle row reports from its SOUTH apron, not its north one. North
+         of those machines is behind them from this camera, and a receipt duct
+         you cannot see is a duct that teaches nothing — so the branches drop
+         away from the belt, gather on a spine behind the machines, and the
+         riser comes back north at x 30, west of the indexer, passing under the
+         belt and under nothing else. */
+      { src:['echo'],      x0:44.0, y0:38.4, x1:44.0, y1:40.2 },
+      { src:['indexer'],   x0:34.0, y0:38.4, x1:34.0, y1:40.2 },
+      { src:['echo'],      x0:44.0, y0:40.2, x1:30.0, y1:40.2 },
+      { src:['echo','indexer'],
+        x0:30.0, y0:40.2, x1:30.0, y1:21.40, riser:true }
+    ],
+
+    /* Outbound, and overhead: at z 4.5 a run clears the carrier by some 170 px
+       in screen space, so it may cross the belt freely. Three of them, because
+       audit is mostly a listener — seven lines in, three out. */
+    tube: [
+      { to:'gateway',   z:4.5, pts:[[31.0,17.0],[31.0,6.4],[18.9,6.4]],
+        label:'GET /watermark' },
+      { to:'reporting', z:4.5, pts:[[35.60,20.0],[40.4,20.0]],
+        label:'windowReconciliation' },
+      { to:'quota',     z:4.5, pts:[[35.60,17.0],[50.0,17.0]],
+        label:'windowReconciliation' }
+    ]
+  };
+
+  /* Stanchions for the overhead runs. The horizontal runs are drawn in a late
+     pass because nothing on the floor can occlude them; their posts cannot be,
+     because a post reaches the ground and has to sort like any other solid. */
+  var RELAY_POSTS = [];
+  RELAY.tube.forEach(function (t) {
+    t.pts.forEach(function (pt) { RELAY_POSTS.push({ x: pt[0], y: pt[1], z: t.z }); });
+  });
+
+  function distToSeg(px, py, x0, y0, x1, y1) {
+    var dx = x1 - x0, dy = y1 - y0, L2 = dx * dx + dy * dy;
+    var t = L2 ? Math.max(0, Math.min(1, ((px - x0) * dx + (py - y0) * dy) / L2)) : 0;
+    return Math.hypot(px - (x0 + dx * t), py - (y0 + dy * t));
+  }
+
+  /* Props must keep off the trench, or a crate ends up straddling an open cut. */
+  function nearTrench(x, y, pad) {
+    for (var i = 0; i < RELAY.trench.length; i++) {
+      var t = RELAY.trench[i];
+      if (distToSeg(x, y, t.x0, t.y0, t.x1, t.y1) < 1.3 + pad) return true;
+    }
+    return false;
+  }
+
+  /* ---- topic lanes --------------------------------------------------------
+   *
+   * The belt is not one pipe. Every stretch of it between two machines is a
+   * different Kafka topic, and until now those names lived only in the
+   * narration. Painted on the floor alongside the belt, the topic change at
+   * each station becomes something the reader watches rather than reads: the
+   * intake arm of a machine reaches to one named lane, its outfeed arm places
+   * onto the next.
+   *
+   * Names are verbatim from the channel table (Section 2b of
+   * knowledge/system-explainer-input.md). Coordinates are the lane centreline,
+   * already offset clear of the belt onto whichever side has floor: the top
+   * row of machines stands north of its belt, so its lanes are painted south.
+   * -------------------------------------------------------------------- */
+  var TOPIC_LANES = [
+    /* top run — machines north of the belt, lanes painted on the interior side */
+    { x0: 6.4,  y0: 9.9,  x1: 13.4, y1: 9.9,
+      text: 'supBulkIndexingTopic_k8s', from: 'archive' },
+    { x0: 14.6, y0: 9.9,  x1: 23.4, y1: 9.9,
+      text: 'ec.surveillance-gateway.outbox.{tenant}.ingestedCommunication' },
+    { x0: 24.6, y0: 9.9,  x1: 33.4, y1: 9.9,
+      text: 'ec.surveillance-qualifier.{tenant}.qualifications' },
+    { x0: 34.6, y0: 9.9,  x1: 43.4, y1: 9.9,
+      text: 'ec.surveillance-filter.{tenant}.evaluations' },
+    { x0: 44.6, y0: 9.9,  x1: 58.4, y1: 9.9,
+      text: 'ec.surveillance-policy-evaluator.{tenant}.surveilled' },
+
+    /* the turn — painted outside the U, where there is floor to spare */
+    { x0: 61.9, y0: 9.4,  x1: 61.9, y1: 26.6, dir: 'y',
+      text: 'ec.surveillance-quota-manager.{tenant}.surveilled-communication-outbox' },
+
+    /* middle run — machines south of the belt, lanes again on the interior */
+    { x0: 53.4, y0: 26.1, x1: 35.0, y1: 26.1,
+      text: 'ec.alerting-service.{tenant}.alertedCommunication' }
+  ];
+
+  function buildTopicLanes() {
+    TOPIC_LANES.forEach(function (t) {
+      decals.push({
+        kind: 'topic',
+        x0: t.x0, y0: t.y0, x1: t.x1, y1: t.y1,
+        dir: t.dir || 'x', text: t.text, from: t.from || null
+      });
+    });
+  }
+
+  function buildProps() {
+    var i, x, y, n;
+
+    /* Conduit trunks: the trunking that gives the place its name, carried on
+       stanchions down the clear aisles between the belt rows, plus one vertical
+       run up the west side. None of these cross the belt. */
+    /* The y 18.5 trunk used to cross the whole floor; the records precinct now
+       sits in the middle of it, so it stops short of the tower. */
+    [[8, 18.5, 26, 18.5], [8, 38.0, 46, 38.0], [10, 13.0, 10, 36.0]]
+      .forEach(function (r) {
+        props.push({ kind: 'conduit', x0: r[0], y0: r[1], x1: r[2], y1: r[3], z: 0.75 });
+      });
+
+    /* Spurs off the trunk to the machines it feeds. Only the four that can be
+       reached without crossing the belt — the top and bottom rows have the belt
+       between them and the nearest trunk. */
+    [['alerting', 54, 40.0, 54, 33.8],
+     ['echo',     44, 40.0, 44, 33.8],
+     ['indexer',  34, 40.0, 34, 33.8]].forEach(function (r) {
+      props.push({ kind: 'spur', x0: r[1], y0: r[2], x1: r[3], y1: r[4], z: 0.62 });
+    });
+
+    /* Belt-side stanchions carrying a cable strung post to post. This is the
+       one thing the floor had no equivalent of: rocket-engine's pole line gives
+       the whole length of the belt a vertical rhythm, and without it a long
+       conveyor reads as a flat stripe. Posts are thin and set well back, so
+       they never occlude the carrier. */
+    var prev = null, step = 7.0, d, at, nx, ny, px, py, side;
+    for (d = 4; d < BELT.total - 3; d += step) {
+      at = BELT.at(d);
+      nx = -at.dy; ny = at.dx;                    /* left-hand normal */
+      side = 2.75;
+      px = at.x + nx * side; py = at.y + ny * side;
+      if (blockedByStructure(px, py, 0.6) || !onSlab(px, py)) {
+        px = at.x - nx * side; py = at.y - ny * side;   /* try the other side */
+        if (blockedByStructure(px, py, 0.6) || !onSlab(px, py)) { prev = null; continue; }
+      }
+      var post = { kind: 'post', x: px, y: py, prev: prev };
+      props.push(post);
+      prev = post;
+    }
+
+    /* Painted bay markings — cheap floor structure in the open middle. */
+    [[26, 18.5], [38, 18.5], [50, 18.5], [22, 40], [34, 40],
+     [30, 24], [42, 24]].forEach(function (b) {
+      if (!blocked(b[0], b[1], 1.0)) {
+        decals.push({ kind: 'bay', x: b[0], y: b[1], w: 4.2, d: 3.0 });
+      }
+    });
+
+    /* High-bay lamps on the aisle centrelines. */
+    [[14, 18.5], [30, 18.5], [46, 18.5], [58, 18.5],
+     [14, 40.0], [30, 40.0], [42, 40.0]].forEach(function (p) {
+      if (!blocked(p[0], p[1], 0)) props.push({ kind: 'lamp', x: p[0], y: p[1] });
+    });
+
+    /* Crate pallets — staged document batches waiting on floor space. */
+    [[10, 14], [20, 15.5], [30, 14.5], [42, 15.5], [50, 20],
+     [20, 36], [28, 42], [46, 36], [56, 40], [8, 46],
+     [60, 34], [46, 24], [22, 22], [16, 20], [36, 20], [58, 16],
+     [24, 34], [40, 36], [52, 24], [18, 44], [44, 44], [30, 44],
+     [62, 30], [12, 34], [50, 34]].forEach(function (p, j) {
+      if (!blocked(p[0], p[1], 0)) props.push({ kind: 'pallet', x: p[0], y: p[1], seed: j });
+    });
+
+    /* Equipment cabinets: the stores and switchgear the services run on. */
+    [[6, 24], [6, 34], [58, 22], [62, 40], [30, 24], [42, 42],
+     [18, 24], [26, 16], [48, 16], [60, 26], [16, 42], [56, 34],
+     [38, 42], [22, 30], [50, 30]].forEach(function (p, j) {
+      if (!blocked(p[0], p[1], 0.4)) props.push({ kind: 'cabinet', x: p[0], y: p[1], seed: j });
+    });
+
+    /* Cable drums — on their side, thematic for a plant full of trunking. */
+    [[14, 16], [34, 24], [52, 18], [26, 38], [44, 40], [60, 20], [20, 42]]
+      .forEach(function (p, j) {
+        if (!blocked(p[0], p[1], 0.3)) props.push({ kind: 'spool', x: p[0], y: p[1], seed: j });
+      });
+
+    /* Barrel clusters. */
+    [[12, 22], [40, 16], [56, 28], [24, 26], [46, 30], [32, 42], [8, 30]]
+      .forEach(function (p, j) {
+        if (!blocked(p[0], p[1], 0.3)) props.push({ kind: 'drum', x: p[0], y: p[1], seed: j });
+      });
+
+    /* Gravel and scrub OUTSIDE the slab, so the plant stands on ground rather
+       than on nothing. The Cognition pad and the slab itself stay clear. */
+    for (x = -12; x < GW + 14; x += 2.4) {
+      for (y = -12; y < GH + 14; y += 2.4) {
+        if (onSlab(x, y)) continue;
+        if (x > COG_FLOOR.x - 4 && x < COG_FLOOR.x + COG_FLOOR.w + 4 &&
+            y > COG_FLOOR.y - 4 && y < COG_FLOOR.y + COG_FLOOR.d + 4) continue;
+        n = Iso.hash2(x * 7, y * 11, 23);
+        if (n > 0.30) continue;
+        props.push({ kind: n < 0.08 ? 'rock' : 'scrub',
+                     x: x + n * 1.4, y: y + n * 0.9, s: 0.6 + n * 2.2 });
+      }
+    }
+  }
+
+  buildProps();
+  buildTopicLanes();
+
+  /* Kept for city-style callers that iterate a buildings list. */
+  var buildings = [];
 
   global.World = {
     GW: GW, GH: GH,
     BELT: BELT,
     STATIONS_FLAT: STATIONS_FLAT,
+    /* Alias under the name the skill's smoke test looks for. It does
+       Object.values(World.stations).flat(), which yields the station objects
+       whether this is an array or a group map — so the documented verification
+       command works against this project without special-casing. */
+    stations: STATIONS_FLAT,
     STATION_IDX_BY_ID: STATION_IDX_BY_ID,
     SIDE_STRUCTS: SIDE_STRUCTS,
     COG_FLOOR: COG_FLOOR,
     COGNITION: COGNITION,
     districts: DISTRICTS,
     districtById: DISTRICT_BY_ID,
+    OFFBELT: OFFBELT,
+    RELAY: RELAY,
+    RELAY_POSTS: RELAY_POSTS,
+    TOWER: TOWER,
     stationToDistrict: STATION_TO_DISTRICT,
     palette: C,
     readSeconds: readSeconds,
+    decals: decals,
     buildings: buildings,
     props: props,
     build: build

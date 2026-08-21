@@ -1,182 +1,166 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>EC Factory Tour: Smarsh Enterprise Conduct — 21 Services</title>
-  <link rel="stylesheet" href="css/styles.css">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>EC Factory Tour: Smarsh Enterprise Conduct — 21 Services</title>
+<meta name="description" content="An isometric factory floor of the Smarsh Enterprise Conduct platform: one communication rides a conveyor belt through the surveillance data path — gateway, qualifier, filter, policy evaluator, quota manager, alerting, echo, indexer — while the control tower keeps the record." />
+<meta name="theme-color" content="#191713" />
+<link rel="stylesheet" href="css/styles.css" />
+<link rel="stylesheet" href="css/dock.css" />
+<!-- Inline SVG favicon: no file request, so no 404 to fail the smoke test. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23191713'/%3E%3Crect x='4' y='18' width='24' height='4' rx='1' fill='%238d949c'/%3E%3Crect x='7' y='9' width='7' height='9' fill='%23e0a02c'/%3E%3Crect x='18' y='12' width='7' height='6' fill='%23c2703c'/%3E%3C/svg%3E" />
 </head>
 <body>
 
-<!-- ======================================================================
-     Top bar (.topbar — scanned by main.js for height)
-     ====================================================================== -->
-<header class="topbar" id="topbar">
-  <span id="brand">EC Factory Tour</span>
-  <div id="stats-bar"></div>
-  <nav id="top-nav">
-    <label class="icon-btn"><input id="follow" type="checkbox" checked> Follow</label>
-    <label class="icon-btn"><input id="labels" type="checkbox" checked> Labels</label>
-    <button id="zoom-out" class="icon-btn" title="Zoom out">−</button>
-    <button id="zoom-in"  class="icon-btn" title="Zoom in">+</button>
-    <button id="zoom-fit" class="icon-btn" title="Fit world">⊡</button>
-    <button id="about-btn" class="icon-btn" title="About">?</button>
-  </nav>
+<canvas id="stage"></canvas>
+<div id="tooltip" class="tooltip" hidden></div>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="logo" aria-hidden="true"></div>
+    <div class="brand-text">
+      <h1>EC Factory Tour</h1>
+      <p>21 Smarsh Enterprise Conduct services, one factory floor — a single communication walked end to end</p>
+    </div>
+  </div>
+  <div class="top-actions">
+    <button id="btn-about" class="ghost">About &amp; accuracy</button>
+    <button id="btn-panel" class="ghost" aria-expanded="true">Hide panel</button>
+  </div>
 </header>
 
-<!-- ======================================================================
-     HUD: controls row (#hud — scanned by main.js for bottom offset)
-     ====================================================================== -->
-<div id="hud">
-  <div id="transport-bar">
-    <button id="start-btn"  class="primary-btn">START</button>
-    <button id="play-btn"   class="icon-btn">▶</button>
-    <button id="step-btn"   class="icon-btn" title="Step to next station">⏭</button>
-    <button id="reset-btn"  class="icon-btn" title="Reset">↺</button>
-    <button id="replay-btn" class="icon-btn" title="Replay narration">✦</button>
-    <span id="carrier-pip" class="carrier-pip"></span>
-    <div id="dwell-bar-wrap"><div id="dwell-bar"></div></div>
-    <div id="stats-bar-inline"></div>
-  </div>
+<div class="hud" id="hud">
+  <div class="hud-item"><span class="hud-k">Station</span><span class="hud-v" id="hud-station">idle</span></div>
+  <div class="hud-item"><span class="hud-k">End to end</span><span class="hud-v" id="hud-total">–</span></div>
+  <div class="hud-item opt"><span class="hud-k">Bottleneck</span><span class="hud-v" id="hud-bottleneck">–</span></div>
+  <div class="hud-item opt"><span class="hud-k">Sampled</span><span class="hud-v" id="hud-tput">–</span></div>
+  <div class="hud-item"><span class="hud-k">Trip</span><span class="hud-v" id="hud-trip">0 / 3</span></div>
+  <div class="hud-note" id="hud-note"></div>
 </div>
 
-<!-- ======================================================================
-     Canvas — id="stage" required by main.js
-     ====================================================================== -->
-<canvas id="stage"></canvas>
+<div class="zoomer" id="zoomer">
+  <button id="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+  <button id="zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+  <button id="zoom-fit" title="Show the whole floor (or double-click the ground)" aria-label="Fit whole floor">⤢</button>
+</div>
 
-<!-- ======================================================================
-     Tooltip — required by main.js
-     ====================================================================== -->
-<div id="tooltip" hidden></div>
+<aside class="inspector" id="inspector">
+  <button class="sheet-handle" id="sheet-handle" aria-expanded="false" aria-controls="inspector">
+    <span class="grip" aria-hidden="true"></span>
+    <span class="sheet-label">Details</span>
+  </button>
 
-<!-- ======================================================================
-     Dock: sliders and phase chart (#dock — scanned by main.js for height)
-     ====================================================================== -->
-<aside id="dock">
-
-  <div id="controls">
-    <div class="ctrl-group">
-      <label>Ingest <span id="ingest-rate-val">50/s</span>
-        <input id="ingest-rate" type="range" min="1" max="200" value="50" step="1">
-      </label>
+  <div class="stage-card">
+    <div class="eyebrow">
+      <span class="chip" id="stage-chip">idle</span>
+      <span class="tag" id="stage-tag"></span>
     </div>
-    <div class="ctrl-group">
-      <label>Doc <span id="doc-size-val">512 KB</span>
-        <input id="doc-size" type="range" min="1" max="5120" value="512" step="1">
-      </label>
-    </div>
-    <div class="ctrl-group">
-      <label>Content% <span id="content-pol-val">40%</span>
-        <input id="content-pol" type="range" min="0" max="100" value="40" step="1">
-      </label>
-    </div>
-    <div class="ctrl-group">
-      <label>Sample% <span id="sample-pct-val">10%</span>
-        <input id="sample-pct" type="range" min="1" max="100" value="10" step="1">
-      </label>
-    </div>
-    <div class="ctrl-group">
-      <label>Fail% <span id="fail-rate-val">2%</span>
-        <input id="fail-rate" type="range" min="0" max="10" value="2" step="1">
-      </label>
-    </div>
-    <div class="ctrl-group">
-      <label>Pipes
-        <select id="pipeline-count">
-          <option value="1">1</option>
-          <option value="2" selected>2</option>
-          <option value="4">4</option>
-          <option value="8">8</option>
-        </select>
-      </label>
-    </div>
-    <div class="ctrl-group">
-      <button id="autoscale-btn" class="toggle-btn active">KEDA ON</button>
+    <h2 id="stage-name">Press START to run the line</h2>
+    <p class="lede" id="stage-short">The floor is idle. One communication rides the belt through the surveillance data path; everything off the belt is feeding it or keeping its record.</p>
+    <p class="muted" id="stage-body"></p>
+    <div class="dwell" id="dwell" hidden>
+      <i id="dwell-bar"></i>
+      <span id="dwell-hint">reading stop: press <kbd>Space</kbd> to hold it here</span>
     </div>
   </div>
 
-  <div id="phase-section">
-    <div id="phase-list"></div>
-  </div>
+  <section class="sec">
+    <h3>Communication data sheet <span class="hint" id="sheet-hint">computed live</span></h3>
+    <div class="sheet" id="sheet"></div>
+  </section>
 
+  <section class="sec">
+    <h3>Kafka lag <span class="hint" id="lag-hint">consumer lag vs threshold</span></h3>
+    <div class="bars" id="lag-list"></div>
+  </section>
+
+  <section class="sec">
+    <h3>Traveller <span class="hint" id="log-count"></span></h3>
+    <div class="tokens" id="log"></div>
+  </section>
+
+  <section class="sec">
+    <h3>Record keeper <span class="hint">ec-centralised-audit</span></h3>
+    <div class="output" id="output"><span class="fine">nothing filed yet</span></div>
+  </section>
+
+  <section class="sec">
+    <h3>Stations <span class="hint">click to fly there</span></h3>
+    <div class="chips" id="station-chips"></div>
+  </section>
 </aside>
 
-<!-- ======================================================================
-     Inspector: district narration (#inspector — scanned by main.js)
-     ====================================================================== -->
-<section id="inspector" class="hidden">
-  <div id="district-color-bar"></div>
-  <header id="panel-head">
-    <div>
-      <div id="district-name">–</div>
-      <div id="district-tag"></div>
-    </div>
-    <button id="panel-close" class="icon-btn">✕</button>
-  </header>
-  <p id="district-short"></p>
-  <p id="district-body"></p>
-</section>
+<!-- The dock builds itself from DOCK_SPEC in js/ui.js — see js/dock.js. -->
+<footer class="dock" id="dock"></footer>
 
-<!-- ======================================================================
-     HUD note
-     ====================================================================== -->
-<div id="hud-note"></div>
+<div class="modal" id="about" hidden>
+  <div class="modal-card">
+    <button class="modal-close" id="about-close" aria-label="Close">×</button>
 
-<!-- ======================================================================
-     About: id="about" required by main.js (hidden attr used by escape key)
-     ====================================================================== -->
-<div id="about" class="modal-wrap hidden">
-  <div class="modal-box">
-    <button id="about-close" class="icon-btn">✕</button>
-    <h2>EC Factory Tour</h2>
-    <p>All 21 Smarsh Enterprise Conduct repositories on a single factory floor.</p>
-    <p>
-      <b>Surveillance data path (belt):</b>
-      ec-gateway · ec-queue-qualifier · ec-surveillance-filter ·
-      ec-surveillance-policy-evaluator · ec-surveillance-quota-manager ·
-      ec-alerting-service · ec-echo-engine · ec-indexer ·
-      ec-centralised-audit · ec-reporting
-    </p>
-    <p>
-      <b>Configuration &amp; reprocessing (left):</b>
-      ec-config-curator · ec-conduct-hithighlight-service · ec-manual-runs-service
-    </p>
-    <p>
-      <b>Review &amp; actioning (right):</b>
-      ec-review-service · ea-ui-portal · ep-conduct-external-api ·
-      conduct-actioning-service · conduct-actioning (library)
-    </p>
-    <p>
-      <b>Reporting (bottom):</b>
-      ec-conduct-audit-service · conduct-reports · ec-compliance-report
-    </p>
-    <p><b>External:</b> Cognition (analytics platform)</p>
-    <h3>Fidelity</h3>
-    <p>
-      <b>Computed:</b> S3 chunk sizing, Kafka queue depth, KEDA replicas,
-      retry-ladder timing, quota counter, pipeline fan-out, ES bulk flush,
-      echo detection, end-to-end latency.
-    </p>
-    <p>
-      <b>Assumed:</b> S3 first-byte 25 ms, throughput 60 KB/ms,
-      minification 0.12, Mongo R/W 4/8 ms, Redis INCR 1 ms,
-      ES bulk 40 ms + 200 KB/ms, policy 0.5 ms, Cognition RTT 45 000 ms.
-    </p>
-    <h3>Keys</h3>
-    <p>Space play/pause · S step · R reset · F follow · L labels · Esc close</p>
+    <h2>What this is</h2>
+    <p>All 21 Smarsh Enterprise Conduct repositories on a single factory floor. One communication rides
+       a conveyor belt through the surveillance data path — <strong>ec-gateway, ec-queue-qualifier,
+       ec-surveillance-filter, ec-surveillance-policy-evaluator, ec-surveillance-quota-manager,
+       ec-alerting-service, ec-echo-engine, ec-indexer</strong> — while eleven more services stand off
+       the line as the machinery that feeds it, and two more keep its record.</p>
+    <p><strong>ec-centralised-audit</strong> and <strong>ec-reporting</strong> are deliberately not on the
+       belt: they consume events <em>about</em> the communication, so the communication never travels to
+       them. They stand inside the loop the belt makes, and the audit tower is fed by trenches cut under
+       the floor. Four forks leave the line early — nothing claims it, nothing qualifies, every content
+       verdict ages out, not sampled — and three of them end the journey where they happen.</p>
+
+    <h2>The floor</h2>
+    <p><strong>Configuration &amp; reprocessing:</strong> ec-config-curator · ec-conduct-hithighlight-service ·
+       ec-manual-runs-service</p>
+    <p><strong>Review &amp; actioning:</strong> ec-review-service · ea-ui-portal · ep-conduct-external-api ·
+       conduct-actioning-service · conduct-actioning (library)</p>
+    <p><strong>Reporting:</strong> ec-conduct-audit-service · conduct-reports · ec-compliance-report</p>
+    <p><strong>External:</strong> Cognition (analytics platform)</p>
+
+    <h2>How much of it is real</h2>
+    <p><strong>Genuinely computed, live, in your browser:</strong> the whole ranged-GET plan — chunk count,
+       concurrency, waves and bytes on the wire from the document size you choose; Kafka consumer lag and
+       the KEDA replica count it drives; retry-ladder timing; the quota counter; the pipeline fan-out; the
+       Elasticsearch bulk flush; echo detection; and end-to-end latency. Move a slider and the machinery
+       moves because the arithmetic changed, not because an animation was swapped.</p>
+    <p><strong>Assumed:</strong> S3 first-byte 25 ms, throughput 60 KB/ms, minification 0.12, Mongo R/W
+       4/8 ms, Redis INCR 1 ms, ES bulk 40 ms + 200 KB/ms, policy evaluation 0.5 ms, 80% of a document's
+       participants in the monitored population, a flag policy matching on 75% of the pipelines an ignore
+       policy did not suppress, four policies per pipeline, and 90% of surveilled communications passing
+       the sampling profile's participant filters.</p>
+    <p><strong>Controlled, not assumed:</strong> the Cognition round trip. It defaults to 45 000 ms, but it
+       is the one latency EC's own code does not bound — so it is a slider, and it reaches past the
+       9 000 000 ms COMS ceiling on purpose.</p>
+    <p><strong>Scaled:</strong> the Cognition wait (a 9 000 000 ms ceiling shown in seconds) and every
+       machine's work cycle — ec-gateway's press takes about 2.5 s a stroke to do what the model prices at
+       roughly 200 ms. The figures on its readout are the computed ones.</p>
+    <p><strong>Faked:</strong> floor shapes, belt texture, machine livery, and the two opaque identifiers on
+       display — the window token and the echo fingerprint are plausible shapes, not real values.</p>
+
+    <h2>Controls</h2>
+    <ul>
+      <li><b>Space</b> play / pause · <b>S</b> advance one station · <b>R</b> reset and replay the tour ·
+          <b>F</b> follow camera · <b>L</b> labels · <b>Esc</b> close</li>
+      <li>Drag to pan, scroll to zoom, click any machine for its write-up.</li>
+      <li>The view starts close on the carrier and rides along with it. The <b>⤢</b> button on the left
+          (or a double-click on the ground) pulls back to the whole floor; turning off <b>Follow</b> lets
+          you wander.</li>
+    </ul>
+    <p class="fine">Built with the isometric-explainer kit. All code, art and copy here are original.</p>
   </div>
 </div>
 
-<!-- Scripts — engine → model → world → factory → sim → render → ui → main -->
+<!-- Scripts — engine → model → world → factory → kit → dock → sim → render → ui → main -->
 <script src="js/iso.js"></script>
 <script src="js/model.js"></script>
 <script src="js/world.js"></script>
 <script src="js/factory.js"></script>
+<script src="js/kit.js"></script>
+<script src="js/dock.js"></script>
 <script src="js/sim.js"></script>
 <script src="js/render.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/main.js"></script>
-
 </body>
 </html>
