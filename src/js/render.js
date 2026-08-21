@@ -3276,63 +3276,90 @@
     var done = s.charged || {};
     var i;
 
+    /* Helper functions for interpolation during dwell. */
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function lerpColor(c1, c2, t) {
+      var r1 = parseInt(c1.slice(1, 3), 16), g1 = parseInt(c1.slice(3, 5), 16), b1 = parseInt(c1.slice(5, 7), 16);
+      var r2 = parseInt(c2.slice(1, 3), 16), g2 = parseInt(c2.slice(3, 5), 16), b2 = parseInt(c2.slice(5, 7), 16);
+      var r = Math.round(lerp(r1, r2, t)), g = Math.round(lerp(g1, g2, t)), b = Math.round(lerp(b1, b2, t));
+      return '#' + ('0' + r.toString(16)).slice(-2) + ('0' + g.toString(16)).slice(-2) + ('0' + b.toString(16)).slice(-2);
+    }
+
     /* The belt now stands off the slab, so everything on the carrier is lifted
        by that height — otherwise the skid sinks into the deck it rides on. */
     var BZ = (Factory.BELT_H != null) ? Factory.BELT_H : 0;
+
+    /* PACKAGE TRANSFORMATION STATE & TIMING
+       packageState: which stage we're in (RAW, INGESTED, QUALIFIED, etc.)
+       packageT: progress 0→1 through the current transformation
+       Used to interpolate geometry and color during dwell. */
+    var pState = s.packageState || 'RAW';
+    var pT = s.packageT || 0;
 
     /* skid and deck */
     carrierPart(f, 0, 0, BZ + 0.06, 2.10, 1.46, 0.14, '#151922', false);
     carrierPart(f, 0, 0, BZ + 0.20, 1.94, 1.30, 0.10, '#2c3446', false);
 
     /* ---- the payload ----
-       Full document until the gateway strips it; a fraction of the size after,
-       and shifted to the rear to leave deck space for what accumulates.
+       Transforms from RAW (full document, 1.52×1.10×0.80, warm) to INGESTED
+       (stripped, 0.66×0.56×0.36, cool) during gateway dwell.
 
-       TRANSFORMATION NEEDED: During gateway dwell, the payload block should
-       animate from RAW (large, full color) to INGESTED (compressed, darker).
-       Use van.dwell timing to lerp the dimensions and color.
-
-       Current logic:
-         RAW (before gateway fires):     1.52 x 1.10 x 0.80, warm '#c9c2ae'
-         INGESTED (after gateway fires): 0.66 x 0.56 x 0.36, cool '#78839a'
-
-       Animation: Over World.readSeconds('gateway') time, smoothly transition
-       the box from RAW to INGESTED dimensions and color.
+       Interpolation during dwell: pState='INGESTED' and pT goes 0→1.
+       After gateway fires: pState will be INGESTED or beyond, pT=1 (fully transformed).
     */
-    var stripped = !!done.gateway;
-    carrierPart(f,
-      stripped ? -0.48 : 0, 0, BZ + 0.30,
-      stripped ? 0.66 : 1.52,
-      stripped ? 0.56 : 1.10,
-      stripped ? 0.36 : 0.80,
-      stripped ? '#78839a' : '#c9c2ae',
-      'rgba(0,0,0,0.35)');
+    var payloadRaw = { u: 0, len: 1.52, wid: 1.10, h: 0.80, color: '#c9c2ae' };
+    var payloadIngested = { u: -0.48, len: 0.66, wid: 0.56, h: 0.36, color: '#78839a' };
+    var payloadState = payloadRaw;
+    if (pState !== 'RAW') {
+      /* Lerp if transitioning to INGESTED; use INGESTED if beyond it. */
+      if (pState === 'INGESTED') {
+        payloadState = {
+          u: lerp(payloadRaw.u, payloadIngested.u, pT),
+          len: lerp(payloadRaw.len, payloadIngested.len, pT),
+          wid: lerp(payloadRaw.wid, payloadIngested.wid, pT),
+          h: lerp(payloadRaw.h, payloadIngested.h, pT),
+          color: lerpColor(payloadRaw.color, payloadIngested.color, pT)
+        };
+      } else {
+        payloadState = payloadIngested;
+      }
+    }
+    carrierPart(f, payloadState.u, 0, BZ + 0.30,
+      payloadState.len, payloadState.wid, payloadState.h,
+      payloadState.color, 'rgba(0,0,0,0.35)');
 
     /* ---- pipeline tags: one upright plate per matched pipeline ----
-       They stand short and grey out of the qualifier, then grow and turn amber
-       once the filter has ruled on each one.
+       Appear at QUALIFIED (0.24 high, grey) and grow to EVALUATED (0.44 high, amber)
+       during filter dwell.
 
-       TRANSFORMATION NEEDED: During qualifier→filter transition, tags should
-       grow (height 0.24→0.44) and brighten (grey→amber) over the reading dwell.
-
-       QUALIFIED state (at qualifier):  0.24 high, grey '#485266'
-       EVALUATED state (at filter):     0.44 high, amber '#e0b840'
-
-       Animation: During filter dwell, lerp tag height and color over the dwell
-       duration. Tags should visibly grow and glow as policies are evaluated.
+       Interpolation: pState='QUALIFIED' or 'EVALUATED' renders them; lerp when
+       pState='EVALUATED' and pT is between 0–1.
     */
-    if (done.qualifier) {
+    if (pState !== 'RAW' && pState !== 'INGESTED') {
       var pipes = Math.min(4, s.pipelineCount || 2);
-      var ruled = !!done.filter;
+      var tagQualified = { h: 0.24, color: '#485266' };
+      var tagEvaluated = { h: 0.44, color: '#e0b840' };
+      var tagState = tagQualified;
+      if (pState !== 'QUALIFIED') {
+        /* Lerp if transitioning to EVALUATED; use EVALUATED if beyond it. */
+        if (pState === 'EVALUATED') {
+          tagState = {
+            h: lerp(tagQualified.h, tagEvaluated.h, pT),
+            color: lerpColor(tagQualified.color, tagEvaluated.color, pT)
+          };
+        } else {
+          tagState = tagEvaluated;
+        }
+      }
       for (i = 0; i < pipes; i++) {
         carrierPart(f, 0.30, -0.39 + i * 0.26, BZ + 0.30,
-                    0.14, 0.18, ruled ? 0.44 : 0.24,
-                    ruled ? '#e0b840' : '#485266', false);
+                    0.14, 0.18, tagState.h, tagState.color, false);
       }
     }
 
     /* ---- Cognition pending: content policies are still out for evaluation --- */
-    if (done.evaluator && (s.sentToCognition || 0) > 0) {
+    if (pState !== 'RAW' && pState !== 'INGESTED' && pState !== 'QUALIFIED' &&
+        (s.sentToCognition || 0) > 0) {
       var ax = cpx(f, 0.74, 0), ay = cpy(f, 0.74, 0);
       Iso.cylinder(ctx, { x: ax, y: ay, z: BZ + 0.30, r: 0.05, h: 0.52,
                           color: '#1e5048', edge: false });
@@ -3340,14 +3367,18 @@
       Iso.disc(ctx, ax, ay, BZ + 0.86, 0.11);
     }
 
-    /* ---- the sampling stamp: green if a human will read this, red if not --- */
-    if (done.quota) {
+    /* ---- the sampling stamp: green if a human will read this, red if not ---
+       Appears at SAMPLED state and beyond. */
+    if (pState === 'SAMPLED' || pState === 'ALERTED' || pState === 'ECHO_EVALUATED' ||
+        pState === 'INDEXED' || pState === 'TERMINATED') {
       ctx.fillStyle = s.sampled ? '#4ad066' : '#c04040';
       Iso.disc(ctx, cpx(f, -0.02, 0.50), cpy(f, -0.02, 0.50), BZ + 0.32, 0.17);
     }
 
-    /* ---- alert crates: one per sampled pipeline ---- */
-    if (done.alerting) {
+    /* ---- alert crates: one per sampled pipeline ----
+       Appear at ALERTED state and beyond. */
+    if (pState === 'ALERTED' || pState === 'ECHO_EVALUATED' ||
+        pState === 'INDEXED' || pState === 'TERMINATED') {
       var made = Math.min(3, s.alertsCreated || 0);
       for (i = 0; i < made; i++) {
         carrierPart(f, -0.06 + i * 0.32, 0.36, BZ + 0.40, 0.28, 0.28, 0.26,
@@ -3355,14 +3386,16 @@
       }
     }
 
-    /* ---- echo verdict: new, or a repeat of something already raised ---- */
-    if (done.echo) {
+    /* ---- echo verdict: new, or a repeat of something already raised ----
+       Appears at ECHO_EVALUATED state and beyond. */
+    if (pState === 'ECHO_EVALUATED' || pState === 'INDEXED' || pState === 'TERMINATED') {
       ctx.fillStyle = s.isEcho ? '#ff7060' : '#a870d8';
       Iso.disc(ctx, cpx(f, -0.58, -0.42), cpy(f, -0.58, -0.42), BZ + 0.42, 0.13);
     }
 
-    /* ---- index chip ---- */
-    if (done.indexer) {
+    /* ---- index chip ----
+       Appears at INDEXED state and beyond. */
+    if (pState === 'INDEXED' || pState === 'TERMINATED') {
       carrierPart(f, -0.30, -0.40, BZ + 0.40, 0.32, 0.22, 0.13, '#e09040', false);
     }
 
