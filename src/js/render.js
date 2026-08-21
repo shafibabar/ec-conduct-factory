@@ -3237,6 +3237,37 @@
   function cpy(f, u, v) { return f.y + f.hy * u + f.hx * v; }
 
   function drawCarrier(vanPos, s) {
+    /* PACKAGE TRANSFORMATION AND RENDERING
+
+       This function is called every frame to render the communication package
+       traveling on the belt. It currently shows the package with different
+       parts appearing/disappearing as charge() sets state fields for each
+       station (done.gateway, done.qualifier, etc.).
+
+       PHASE 2/3 ENHANCEMENT:
+
+       The package should visually TRANSFORM during each dwell (reading stop).
+       Instead of instant appearance/disappearance, parts should:
+
+         1. Compress/compact/shrink (gateway: payload reduced by 60%)
+         2. Gain markers and tags (qualifier: pipeline tags grow)
+         3. Darken/change appearance (policies applied)
+         4. Seal/lock (indicate sampled/indexed state)
+         5. Fork visually if terminal gate taken (divert path at machine)
+
+       Timing: Use Sim.state.dwellLeft / Sim.state.dwellTotal to lerp between
+       states during the dwell. When dwellLeft = 0 (dwell expired), show the
+       fully transformed package.
+
+       Current state markers (s.charged) indicate which stations have fired.
+       New state marker (s.packageState) will indicate which transformation
+       stage the package is in: RAW → INGESTED → QUALIFIED → EVALUATED →
+       SURVEILLED → SAMPLED → ALERTED → ECHO_EVALUATED → INDEXED → TERMINATED.
+
+       The package's size, color, and parts should evolve as it moves through
+       these stages, creating the visual narrative that "the communication loses
+       mass and gains verdicts" as it travels through the surveillance system.
+    */
     if (!s.running && !s.finished) return;
 
     var m = Math.hypot(vanPos.dx || 0, vanPos.dy || 1) || 1;
@@ -3255,7 +3286,19 @@
 
     /* ---- the payload ----
        Full document until the gateway strips it; a fraction of the size after,
-       and shifted to the rear to leave deck space for what accumulates. */
+       and shifted to the rear to leave deck space for what accumulates.
+
+       TRANSFORMATION NEEDED: During gateway dwell, the payload block should
+       animate from RAW (large, full color) to INGESTED (compressed, darker).
+       Use van.dwell timing to lerp the dimensions and color.
+
+       Current logic:
+         RAW (before gateway fires):     1.52 x 1.10 x 0.80, warm '#c9c2ae'
+         INGESTED (after gateway fires): 0.66 x 0.56 x 0.36, cool '#78839a'
+
+       Animation: Over World.readSeconds('gateway') time, smoothly transition
+       the box from RAW to INGESTED dimensions and color.
+    */
     var stripped = !!done.gateway;
     carrierPart(f,
       stripped ? -0.48 : 0, 0, BZ + 0.30,
@@ -3267,7 +3310,17 @@
 
     /* ---- pipeline tags: one upright plate per matched pipeline ----
        They stand short and grey out of the qualifier, then grow and turn amber
-       once the filter has ruled on each one. */
+       once the filter has ruled on each one.
+
+       TRANSFORMATION NEEDED: During qualifier→filter transition, tags should
+       grow (height 0.24→0.44) and brighten (grey→amber) over the reading dwell.
+
+       QUALIFIED state (at qualifier):  0.24 high, grey '#485266'
+       EVALUATED state (at filter):     0.44 high, amber '#e0b840'
+
+       Animation: During filter dwell, lerp tag height and color over the dwell
+       duration. Tags should visibly grow and glow as policies are evaluated.
+    */
     if (done.qualifier) {
       var pipes = Math.min(4, s.pipelineCount || 2);
       var ruled = !!done.filter;

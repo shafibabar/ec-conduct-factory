@@ -145,6 +145,16 @@
     return null;
   }
 
+  /* charge(id) — called when the carrier reaches a station.
+
+     Updates Sim.state with the computed vehicle state (bytesDownloaded,
+     matchedEntities, pipelineIds, etc.) based on the current slider values.
+     This is where the "package" acquires new properties as it travels.
+
+     PACKAGE TRANSFORMATION: After charge() completes, fire() will call the
+     station's operation and then drawCarrier() will render the updated state.
+     The visual transformation should happen during the dwell (reading stop) that
+     follows fire(). */
   function charge(id) {
     state.plan = planNow();
     var ph = phaseOf(state.plan, id);
@@ -291,14 +301,25 @@
   /* ---- per-station ops -------------------------------------------------- */
 
   /* One decision, one receipt — except where a station decides per pipeline, and
-     except ec-alerting-service, which files none at all. */
+     except ec-alerting-service, which files none at all.
+
+     PACKAGE TRANSFORMATION NOTE: Each machine that fires will update Sim.state
+     with new vehicle fields via charge(). The drawCarrier() function reads these
+     state fields to decide what the package looks like. When packageState changes
+     (gateway: RAW→INGESTED, qualifier: INGESTED→QUALIFIED, etc.), the visual
+     representation transforms over the dwell time (reading stop).
+
+     AUDIT RECEIPT NOTE: AUDIT_RECEIPTS counts how many audit events each station
+     files. These are derivative records, not the package itself — they travel to
+     ec-centralised-audit via World.RELAY (trenches + overhead tubes), not on the
+     belt. The values here determine when pulses fire through the relay network. */
   var AUDIT_RECEIPTS = {
     gateway:   function () { return 1; },
     qualifier: function () { return 1; },
     filter:    function (st) { return Math.max(1, st.pipelineIds); },
     evaluator: function () { return 1; },
     quota:     function () { return 1; },
-    alerting:  function () { return 0; },
+    alerting:  function () { return 0; },  /* no audit event from alerting */
     echo:      function () { return 1; },
     indexer:   function (st) { return st.bulkFlush ? 50 : 1; }
   };
@@ -337,6 +358,27 @@
   }
 
   function fire(st) {
+    /* Called when the carrier reaches a new station on the belt.
+
+       1. charge(st.id) updates Sim.state with vehicle fields computed from
+          the current slider values. This is where the package acquires new
+          properties (bytesDownloaded, matchedEntities, pipelineIds, etc.).
+
+       2. Audit receipt is filed: AUDIT_RECEIPTS[st.id]() returns how many
+          receipts this station emits. These are derivative records that travel
+          to ec-centralised-audit via the relay network (trenches + tubes), not
+          on the belt. Each receipt will trigger a pulse() through World.RELAY.
+
+       3. pipesTerminal counts how many pipelines have reached a terminal outcome
+          at this station. This gates the COMPLETE stamp on the tower.
+
+       4. ui.js listens for 'station' events to update the narration panel.
+
+       5. After fire() returns, the main.js tick will set up van.dwell (reading
+          stop) using World.readSeconds(st.id). During this dwell, drawCarrier()
+          renders the package with its updated state. Package transformation
+          (visual morphing) should occur over this dwell duration.
+    */
     state.station = st.id;
     state.stationT = 0;
     var op = OPS[st.id];
@@ -371,6 +413,26 @@
   function endRunHere() {
     van.stationIdx = World.STATIONS_FLAT.length;
   }
+
+  /* TERMINAL STATES AND PACKAGE FATE
+
+     Four forks leave the line early, each ending where it happens. When a fork
+     is taken, packageState becomes TERMINATED and drawCarrier() should render
+     a visual diversion path at that machine (chute, diverter, exit portal).
+
+     The communication never travels to ec-centralised-audit — audit consumes
+     *events about* it. A suppressed record simply stops where it was suppressed,
+     and its audit receipt goes to the tower by a route the carrier never takes.
+
+     Reachable fork conditions:
+       B1 (not-qualified):  participants = 0 (no pipelines match)
+       B2 (all-suppressed): ignore policies eliminate all pipelines
+       C  (coms-timedout):  content evaluation times out waiting for Cognition
+       B3 (not-sampled):    quota exhausted or sampling hash rejects it
+
+     Each fork calls either endRunHere() (B1, C, B3) or jumps to the quota
+     machine (B2, accounting-only path). After fire(), state fields determine
+     which fork applies. */
 
   /* Fork one — Flow B1, at the qualifier: no pipeline claimed this
      communication, so pipelineIds is empty. ec-queue-qualifier publishes an
@@ -442,6 +504,20 @@
 
     var sdt = dt * state.speed * travelBoost();
 
+    /* DWELL (reading stop) — the carrier pauses at each station.
+
+       On the FIRST visit to a station (firstTime = true), the reader gets a
+       pause: van.dwell = World.readSeconds(st.id), typically 2-3 seconds per
+       narration block. state.reading = true so ui.js can show a "press Space to
+       continue" hint and the narration panel fills with description.
+
+       PACKAGE TRANSFORMATION TIMING: The dwell is the window for visual
+       transformation. drawCarrier() should morph the package from one state to
+       the next over this van.dwell duration, using the elapsed dwell time to
+       lerp between packageState values.
+
+       On subsequent trips (fastForward mode), the dwell is much shorter.
+    */
     if (van.dwell > 0) {
       van.dwell -= dt * state.speed;
       state.dwellLeft = Math.max(0, van.dwell);
@@ -449,6 +525,7 @@
       return;
     }
 
+    /* Travel along the belt toward the next station. */
     van.dist += BASE_SPEED * sdt;
 
     var sts = World.STATIONS_FLAT;
@@ -459,12 +536,35 @@
         van.stationIdx++;
         var topic = World.stationToDistrict[st.id] || st.id;
         var firstTime = !tour.seen[topic];
+
+        /* PACKAGE LIFECYCLE at this station:
+
+           1. fire(st) calls charge(st.id), updating Sim.state with the
+              package's new properties and filing audit receipts.
+
+           2. Gates check for terminal forks (B1, B2, C, B3). These may call
+              endRunHere() or jump van.stationIdx to end the journey early.
+
+           3. van.dwell is set to the reading pause duration (firstTime) or
+              a quick glance (subsequent trips).
+
+           4. draw.js main loop calls drawCarrier(vanPos, Sim.state) each frame.
+              During van.dwell > 0, drawCarrier() should interpolate the
+              package from its old state to its new state, creating a visible
+              transformation (compression, sealing, gaining marks, etc.).
+
+           5. When van.dwell expires, the carrier resumes travel to the next
+              station. On the next tick, drawCarrier() shows the package at its
+              new state, fully transformed.
+        */
         fire(st);
+
         /* apply the gates AFTER fire, so the state they read is set */
         if (st.id === 'qualifier') applyQualifierGate();
         if (st.id === 'filter')    applyFilterGate();
         if (st.id === 'evaluator') applyEvaluatorGate();
         if (st.id === 'quota')     applyGate();
+
         tour.seen[topic] = true;
         van.dwell = firstTime ? World.readSeconds(st.id) : st.dwell / dwellBoost();
         state.reading = firstTime;
