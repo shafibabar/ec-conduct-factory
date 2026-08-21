@@ -3428,6 +3428,61 @@
       Iso.ribbon(ctx, gx0, gy0,
                  gx0 + (gx1 - gx0) * frac, gy0 + (gy1 - gy0) * frac, 0.14, BZ + 0.33);
     }
+
+    /* ---- Terminal fork diversion chutes ----
+       When packageState === TERMINATED, draw a chute extending from the machine
+       and animate the package diverting into it. */
+    if (pState === 'TERMINATED' && s.terminalFork) {
+      var chuteSrc = s.station;
+      var chuteDir = null;  // offset direction perpendicular to belt heading
+
+      /* B1 at qualifier: chute extends southwest (left-down on screen) */
+      if (s.terminalFork === 'B1' && chuteSrc === 'qualifier') {
+        chuteDir = { u: -0.6, v: 0.5 };
+      }
+      /* C at evaluator: chute extends southwest */
+      else if (s.terminalFork === 'C' && chuteSrc === 'evaluator') {
+        chuteDir = { u: -0.6, v: 0.5 };
+      }
+      /* B3 at quota: chute extends southwest */
+      else if (s.terminalFork === 'B3' && chuteSrc === 'quota') {
+        chuteDir = { u: -0.6, v: 0.5 };
+      }
+
+      if (chuteDir) {
+        /* Draw the chute structure extending from the carrier */
+        var chuteEnd = pT;  /* pT goes 0→1 over dwell */
+        var chuteX0 = cpx(f, 0, 0);
+        var chuteY0 = cpy(f, 0, 0);
+        var chuteX1 = cpx(f, chuteDir.u * chuteEnd, chuteDir.v * chuteEnd);
+        var chuteY1 = cpy(f, chuteDir.u * chuteEnd, chuteDir.v * chuteEnd);
+
+        /* Draw chute walls as ribbons */
+        ctx.fillStyle = 'rgba(60, 50, 40, 0.7)';
+        Iso.ribbon(ctx, chuteX0, chuteY0, chuteX1, chuteY1, 0.20, BZ + 0.25);
+
+        /* Animate package sliding into chute: move it partway down the chute */
+        if (pT > 0) {
+          var slipT = Math.min(1, pT * 1.5);  /* Accelerate into chute */
+          var pkgX = f.x + f.hx * (0 + chuteDir.u * slipT * 0.3) -
+                      f.hy * (0 + chuteDir.v * slipT * 0.3);
+          var pkgY = f.y + f.hy * (0 + chuteDir.u * slipT * 0.3) +
+                      f.hx * (0 + chuteDir.v * slipT * 0.3);
+
+          /* Draw package disappearing into chute */
+          var disappearT = Math.max(0, 1 - slipT * 2);
+          ctx.globalAlpha = disappearT;
+          Iso.box(ctx, {
+            x: pkgX, y: pkgY, z: BZ + 0.30 - slipT * 0.15,
+            w: payloadState.len * disappearT,
+            h: payloadState.h * disappearT,
+            d: payloadState.wid * disappearT,
+            color: payloadState.color
+          });
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
   }
 
   /* ---- KEDA replica cylinders -------------------------------------------- */

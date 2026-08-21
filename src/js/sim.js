@@ -84,9 +84,11 @@
     /* ---- package transformation state (for visual morphing) ----
      * packageState: which stage the communication is at (RAW → INGESTED → ... → INDEXED)
      * packageT: normalized progress through current transformation (0–1)
+     * terminalFork: which exit was taken (null, 'B1', 'C', 'B3'), drives diversion chute
      * These drive drawCarrier() to interpolate geometry during dwell. */
     packageState: 'RAW',
     packageT: 0,
+    terminalFork: null,
 
     /* ---- the record keeper's own books ----
      * ec-centralised-audit left the belt, so charge() never runs for it. These
@@ -251,6 +253,7 @@
     state.sampled = false;
     state.packageState = 'RAW';
     state.packageT = 0;
+    state.terminalFork = null;
     state.bytesDownloaded  = 0;
     state.bytesAfterMinify = 0;
     /* Seeded from the plan rather than zeroed. These three are pure functions
@@ -465,6 +468,7 @@
   function applyQualifierGate() {
     if (state.pipelineIds === 0) {
       state.packageState = 'TERMINATED';
+      state.terminalFork = 'B1';
       endRunHere();
     }
   }
@@ -491,6 +495,7 @@
   function applyEvaluatorGate() {
     if (state.evaluatorStalled) {
       state.packageState = 'TERMINATED';
+      state.terminalFork = 'C';
       endRunHere();
     }
   }
@@ -500,6 +505,7 @@
   function applyGate() {
     if (!state.sampled) {
       state.packageState = 'TERMINATED';
+      state.terminalFork = 'B3';
       endRunHere();
     }
   }
