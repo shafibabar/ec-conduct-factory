@@ -3270,9 +3270,17 @@
     */
     if (!s.running && !s.finished) return;
 
-    var m = Math.hypot(vanPos.dx || 0, vanPos.dy || 1) || 1;
+    /* Transform the heading vector through isometric projection.
+       vanPos.dx/dy are in world space; we need them in isometric space
+       to match the belt's visual orientation. The projection matrix is:
+       x_iso = (x - y) * TW, y_iso = (x + y) * TH.
+       For a heading vector, apply the same transform (without translation). */
+    var TW = 30, TH = 15;  /* match iso.js constants */
+    var dx_iso = (vanPos.dx - vanPos.dy) * TW;
+    var dy_iso = (vanPos.dx + vanPos.dy) * TH;
+    var m = Math.hypot(dx_iso, dy_iso) || 1;
     var f = { x: vanPos.x, y: vanPos.y,
-              hx: (vanPos.dx || 0) / m, hy: (vanPos.dy || 1) / m };
+              hx: dx_iso / m, hy: dy_iso / m };
     var done = s.charged || {};
     var i;
 

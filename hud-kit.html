@@ -1,0 +1,563 @@
+<title>Factory HUD Kit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#17140f; --surface:#211d17; --surface-2:#2a2419; --code-bg:#0f0d0a;
+  --ink:#ece3d0; --ink-dim:#a89f8c; --ink-faint:#756c5c;
+  --line:rgba(168,159,140,0.22); --line-strong:rgba(168,159,140,0.4);
+  --accent:#c98826; --accent-lit:#e6a642; --accent-soft:rgba(201,136,38,0.14);
+  --steel:#5b93a0; --good:#6fb35c; --warn:#c85a35;
+  --shadow:0 10px 30px rgba(0,0,0,0.45);
+  --display:"Big Shoulders Display",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#f5f1e7; --surface:#ffffff; --surface-2:#eee7d6; --code-bg:#1c1912;
+    --ink:#2a2419; --ink-dim:#6b6250; --ink-faint:#8c8370;
+    --line:rgba(60,52,36,0.16); --line-strong:rgba(60,52,36,0.3);
+    --accent:#a8681a; --accent-lit:#c98826; --accent-soft:rgba(168,104,26,0.12);
+    --steel:#2f6b78; --good:#3f8f2e; --warn:#a8401e;
+    --shadow:0 10px 26px rgba(60,52,36,0.14);
+  }
+}
+:root[data-theme="light"]{
+  --bg:#f5f1e7; --surface:#ffffff; --surface-2:#eee7d6; --code-bg:#1c1912;
+  --ink:#2a2419; --ink-dim:#6b6250; --ink-faint:#8c8370;
+  --line:rgba(60,52,36,0.16); --line-strong:rgba(60,52,36,0.3);
+  --accent:#a8681a; --accent-lit:#c98826; --accent-soft:rgba(168,104,26,0.12);
+  --steel:#2f6b78; --good:#3f8f2e; --warn:#a8401e;
+  --shadow:0 10px 26px rgba(60,52,36,0.14);
+}
+
+*{box-sizing:border-box;}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--body); line-height:1.6;
+}
+::selection{background:var(--accent-soft); color:var(--ink);}
+
+.wrap{max-width:1180px; margin:0 auto; padding:0 28px 120px;}
+
+/* ---------- masthead ---------- */
+.masthead{
+  padding:64px 0 40px; border-bottom:1px solid var(--line);
+  margin-bottom:40px;
+}
+.kicker{
+  font-family:var(--mono); font-size:11.5px; letter-spacing:0.16em; text-transform:uppercase;
+  color:var(--accent); margin:0 0 14px;
+}
+.masthead h1{
+  font-family:var(--display); font-weight:800; text-transform:uppercase;
+  font-size:clamp(40px,6vw,68px); line-height:0.96; letter-spacing:0.01em;
+  margin:0 0 18px; text-wrap:balance;
+}
+.masthead .dek{
+  font-size:16.5px; color:var(--ink-dim); max-width:64ch; margin:0;
+}
+.source-tag{
+  display:inline-flex; gap:8px; align-items:center; margin-top:22px;
+  font-family:var(--mono); font-size:11.5px; color:var(--ink-faint);
+  padding:6px 10px; border:1px solid var(--line); border-radius:4px; background:var(--surface);
+}
+.source-tag b{color:var(--accent); font-weight:600;}
+
+/* ---------- layout: rail + content ---------- */
+.layout{display:grid; grid-template-columns:220px minmax(0,1fr); gap:48px; align-items:start;}
+@media (max-width:960px){ .layout{grid-template-columns:1fr;} .rail{display:none;} }
+
+.rail{position:sticky; top:28px; display:flex; flex-direction:column; gap:2px; padding-top:6px;}
+.rail-h{font-family:var(--mono); font-size:10px; letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-faint); margin:0 0 8px;}
+.rail a{
+  font-size:13px; color:var(--ink-dim); text-decoration:none; padding:6px 10px; border-radius:4px;
+  border-left:2px solid transparent;
+}
+.rail a:hover{color:var(--ink); background:var(--surface); border-left-color:var(--accent);}
+
+/* ---------- sections ---------- */
+section.comp{ padding:44px 0; border-bottom:1px solid var(--line); scroll-margin-top:24px; }
+section.comp:first-child{padding-top:0;}
+.comp-head{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; margin-bottom:6px;}
+.comp-head h2{
+  font-family:var(--display); font-weight:700; text-transform:uppercase;
+  font-size:30px; letter-spacing:0.01em; margin:0;
+}
+.comp-tag{
+  font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase;
+  color:var(--steel); background:rgba(91,147,160,0.12); border:1px solid rgba(91,147,160,0.3);
+  padding:2px 8px; border-radius:3px;
+}
+.purpose{color:var(--ink-dim); font-size:14.5px; max-width:70ch; margin:0 0 24px;}
+
+h3.sub{
+  font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase;
+  color:var(--accent); margin:26px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--line);
+}
+.comp h3.sub:first-of-type{margin-top:0;}
+
+p{font-size:14.5px; color:var(--ink-dim); margin:0 0 12px;}
+.comp p strong{color:var(--ink); font-weight:600;}
+
+pre{
+  margin:0 0 14px; padding:14px 16px; background:var(--code-bg); border:1px solid var(--line);
+  border-radius:6px; overflow-x:auto; box-shadow:inset 0 1px 0 rgba(255,255,255,0.03);
+}
+pre code{
+  font-family:var(--mono); font-size:12px; line-height:1.65; color:#e8dfc9; white-space:pre;
+}
+code.inline{
+  font-family:var(--mono); font-size:0.88em; background:var(--surface-2); color:var(--accent-lit);
+  padding:1px 5px; border-radius:3px;
+}
+
+.callout{
+  display:flex; gap:10px; padding:12px 14px; border-radius:6px; margin:16px 0 0;
+  background:var(--accent-soft); border:1px solid rgba(201,136,38,0.32);
+  font-size:13px; color:var(--ink);
+}
+.callout .mark{font-family:var(--mono); color:var(--accent); font-weight:700; flex:none;}
+
+/* token table */
+table.tokens{width:100%; border-collapse:collapse; font-size:13px; margin-bottom:8px;}
+table.tokens th{
+  text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase;
+  color:var(--ink-faint); padding:0 10px 8px; border-bottom:1px solid var(--line);
+}
+table.tokens td{padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:middle;}
+table.tokens tr:last-child td{border-bottom:none;}
+.swatch{width:16px; height:16px; border-radius:3px; display:inline-block; vertical-align:middle; border:1px solid var(--line-strong); margin-right:8px;}
+.tok-name{font-family:var(--mono); color:var(--accent-lit);}
+
+/* palette strip in masthead area */
+.palette{display:flex; gap:8px; margin-top:26px; flex-wrap:wrap;}
+.chip-color{
+  display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:11px;
+  background:var(--surface); border:1px solid var(--line); border-radius:4px; padding:5px 9px 5px 6px;
+  color:var(--ink-dim);
+}
+.chip-color i{width:14px; height:14px; border-radius:3px; display:block; border:1px solid var(--line-strong);}
+
+footer.end{
+  margin-top:20px; padding-top:24px; border-top:1px solid var(--line);
+  font-size:12.5px; color:var(--ink-faint);
+}
+</style>
+
+<div class="wrap">
+
+  <div class="masthead">
+    <p class="kicker">UI porting reference — source: Rocket Engine Works</p>
+    <h1>Factory HUD Kit</h1>
+    <p class="dek">Anatomy of the seven chrome pieces sitting on top of the factory scene —
+      tooltip, topbar, HUD, zoomer, inspector, dock/footer — with the markup, CSS custom
+      properties, and JS wiring behind each one, so the same look can be rebuilt over a
+      different project's data.</p>
+    <div class="palette">
+      <span class="chip-color"><i style="background:#191713"></i>bg #191713</span>
+      <span class="chip-color"><i style="background:#26231e"></i>panel #26231e</span>
+      <span class="chip-color"><i style="background:#e6dfd2"></i>ink #e6dfd2</span>
+      <span class="chip-color"><i style="background:#e0a02c"></i>amber #e0a02c</span>
+      <span class="chip-color"><i style="background:#e2653a"></i>ember #e2653a</span>
+      <span class="chip-color"><i style="background:#7edc6e"></i>green #7edc6e</span>
+    </div>
+    <div class="source-tag">Every snippet below is copied verbatim from <b>index.html / styles.css / ui.js / main.js</b> in the source repo, then annotated for reuse.</div>
+  </div>
+
+  <div class="layout">
+    <nav class="rail">
+      <p class="rail-h">On this page</p>
+      <a href="#tokens">Tokens & panel chrome</a>
+      <a href="#layout">Layout system</a>
+      <a href="#tooltip">Tooltip</a>
+      <a href="#topbar">Topbar</a>
+      <a href="#hud">HUD</a>
+      <a href="#zoomer">Zoomer</a>
+      <a href="#inspector">Inspector</a>
+      <a href="#dock">Dock / footer</a>
+      <a href="#porting">Porting notes</a>
+    </nav>
+
+    <main>
+
+      <section class="comp" id="tokens">
+        <div class="comp-head"><h2>Tokens</h2><span class="comp-tag">foundation</span></div>
+        <p class="purpose">Every panel in the kit is built from the same seven values. Get these
+          right in the target project first — the components fall into place because they only
+          ever reference the variables, never a literal color.</p>
+
+        <table class="tokens">
+          <tr><th>Token</th><th>Value</th><th>Used for</th></tr>
+          <tr><td><span class="swatch" style="background:#191713"></span><span class="tok-name">--bg</span></td><td>#191713</td><td>page background, behind the canvas</td></tr>
+          <tr><td><span class="swatch" style="background:rgba(38,35,30,.94)"></span><span class="tok-name">--panel</span></td><td>rgba(38,35,30,.94)</td><td>every floating chrome surface (hud item, zoomer, inspector, dock, tooltip)</td></tr>
+          <tr><td><span class="swatch" style="background:rgba(126,116,96,.28)"></span><span class="tok-name">--line</span></td><td>rgba(126,116,96,.28)</td><td>hairline borders and section dividers</td></tr>
+          <tr><td><span class="swatch" style="background:#e6dfd2"></span><span class="tok-name">--ink / --ink-dim / --ink-fine</span></td><td>#e6dfd2 / #a8a294 / #7d7869</td><td>primary text / secondary / captions</td></tr>
+          <tr><td><span class="swatch" style="background:#e0a02c"></span><span class="tok-name">--amber</span></td><td>#e0a02c</td><td>the one accent — computed values, active states, focus</td></tr>
+        </table>
+
+        <h3 class="sub">Bevel + shadow</h3>
+        <p>Every panel gets the same two-part treatment: a drop shadow so it reads as floating
+          above the canvas, and an inset "bevel" of a light top edge / dark bottom edge so it
+          reads as stamped sheet metal rather than a flat div.</p>
+<pre><code>--shadow: 0 8px 26px rgba(0, 0, 0, 0.5);
+--bevel:  inset 0 1px 0 rgba(214, 198, 160, 0.14),
+          inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+
+/* applied together on any chrome surface */
+box-shadow: var(--shadow), var(--bevel);</code></pre>
+        <div class="callout"><span class="mark">Port note</span>&nbsp;Swap <code class="inline">--amber</code> for the target project's brand accent and every "computed value" and active state follows automatically — nothing else needs to change.</div>
+      </section>
+
+      <section class="comp" id="layout">
+        <div class="comp-head"><h2>Layout system</h2><span class="comp-tag">chrome positioning</span></div>
+        <p class="purpose">All seven pieces are <code class="inline">position: fixed</code>,
+          floating over a full-bleed canvas — there's no shared flex/grid page shell. Two of
+          them measure real DOM height at runtime and write it back as CSS variables so the
+          rest of the chrome (and the camera's usable viewport) reflows around whichever panel
+          is currently tallest.</p>
+<pre><code>var lastVars = {};
+function setVar(name, value) {
+  if (lastVars[name] === value) return;  // avoid a ResizeObserver loop
+  lastVars[name] = value;
+  document.documentElement.style.setProperty(name, value);
+}
+
+function measureLayout() {
+  // topbar height is variable (subtitle can wrap), so push the HUD
+  // clear of it instead of hard-coding an offset
+  setVar('--hud-top', Math.round(topbar.getBoundingClientRect().height - 6) + 'px');
+
+  // dock height is variable (mobile tune drawer open/closed), so the
+  // zoomer and inspector on mobile know how much to clear at the bottom
+  setVar('--dock-h', Math.round(dock.getBoundingClientRect().height - 12) + 'px');
+}
+
+new ResizeObserver(measureLayout).observe(document.body);</code></pre>
+        <p>The same measured rectangle (topbar bottom, dock top, inspector width) is also fed
+          into the camera code so the 3D/2D scene frames itself inside the space actually left
+          uncovered by chrome, not the full window.</p>
+      </section>
+
+      <section class="comp" id="tooltip">
+        <div class="comp-head"><h2>Tooltip</h2><span class="comp-tag">hover</span></div>
+        <p class="purpose">A single reusable element, positioned at the pointer on every
+          <code class="inline">pointermove</code> over a hoverable scene object, hidden on
+          <code class="inline">pointerleave</code>. Not per-target — one div, content swapped.</p>
+
+        <h3 class="sub">Markup</h3>
+<pre><code>&lt;div id="tooltip" class="tooltip" hidden&gt;&lt;/div&gt;</code></pre>
+
+        <h3 class="sub">Style</h3>
+<pre><code>.tooltip {
+  position: fixed;
+  z-index: 20;
+  max-width: 280px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: rgba(24, 21, 17, 0.96);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink-dim);
+  pointer-events: none;      /* never steals the hover it's reporting on */
+}
+.tooltip b { display: block; color: var(--amber); font-size: 12px; margin-bottom: 3px; }</code></pre>
+
+        <h3 class="sub">Behavior</h3>
+<pre><code>function showTooltip(x, y, target) {
+  tooltip.hidden = false;
+  tooltip.innerHTML = '&lt;b&gt;' + target.name + '&lt;/b&gt;' + target.short;
+  var r = tooltip.getBoundingClientRect();
+  // clamp inside the viewport instead of letting it run off the edge
+  tooltip.style.left = Math.min(x + 14, viewW - r.width - 12) + 'px';
+  tooltip.style.top  = Math.min(y + 14, viewH - r.height - 12) + 'px';
+}
+function hideTooltip() { tooltip.hidden = true; }</code></pre>
+      </section>
+
+      <section class="comp" id="topbar">
+        <div class="comp-head"><h2>Topbar</h2><span class="comp-tag">masthead</span></div>
+        <p class="purpose">Fixed strip, transparent gradient fade rather than a solid panel, so
+          the scene reads through behind it. Brand mark on the left, ghost-button actions on the
+          right; the row itself has <code class="inline">pointer-events: none</code> so empty
+          space in the strip doesn't block clicks on the canvas below it — only the two child
+          groups re-enable pointer events.</p>
+<pre><code>.topbar {
+  position: fixed; top: 0; left: 0; right: 0;
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; padding: 14px 18px;
+  pointer-events: none;                 /* strip itself is click-through */
+  z-index: 5;
+  background: linear-gradient(to bottom,
+    rgba(20,18,15,.94) 0%, rgba(20,18,15,.78) 55%, rgba(20,18,15,0) 100%);
+}
+.brand, .top-actions { pointer-events: auto; }   /* re-enabled per group */</code></pre>
+        <div class="callout"><span class="mark">Responsive</span>&nbsp;Below 900px the subtitle
+          (<code class="inline">.brand-text p</code>) is dropped entirely and button labels
+          shorten ("About &amp; accuracy" → "About") rather than wrapping.</div>
+      </section>
+
+      <section class="comp" id="hud">
+        <div class="comp-head"><h2>HUD</h2><span class="comp-tag">live counters</span></div>
+        <p class="purpose">A row of small stat chips — label + monospace value — anchored under
+          the topbar at a height read from <code class="inline">--hud-top</code> (see Layout
+          system above), plus one optional full-width note line that wraps under the chips.</p>
+<pre><code>&lt;div class="hud" id="hud"&gt;
+  &lt;div class="hud-item"&gt;&lt;span class="hud-k"&gt;Shop&lt;/span&gt;&lt;span class="hud-v" id="hud-phase"&gt;idle&lt;/span&gt;&lt;/div&gt;
+  &lt;div class="hud-item"&gt;&lt;span class="hud-k"&gt;Station&lt;/span&gt;&lt;span class="hud-v" id="hud-station"&gt;0 / 15&lt;/span&gt;&lt;/div&gt;
+  &lt;div class="hud-note" id="hud-note"&gt;&lt;/div&gt;
+&lt;/div&gt;</code></pre>
+<pre><code>.hud { position: fixed; top: var(--hud-top, 70px); left: 18px; z-index: 4;
+  display: flex; flex-wrap: wrap; gap: 6px;
+  max-width: min(640px, calc(100vw - 36px)); pointer-events: none; }
+.hud-item { display: flex; align-items: baseline; gap: 7px; padding: 5px 10px;
+  border-radius: 4px; background: var(--panel); border: 1px solid var(--line);
+  box-shadow: var(--bevel); font-size: 11px; }
+.hud-k { color: var(--ink-fine); text-transform: uppercase; letter-spacing: .08em; font-size: 9.5px; }
+.hud-v { font-family: var(--mono); font-weight: 700; color: var(--amber); font-size: 12px; }
+.hud-note { flex-basis: 100%; font-size: 11.5px; color: var(--ink-dim);
+  text-shadow: 0 1px 3px rgba(0,0,0,.8); }</code></pre>
+        <p>Repainted on a throttle (skip if &lt;90ms since last paint, unless forced) rather
+          than on every simulation tick — cheap enough for text nodes, but the throttle keeps a
+          fast tick loop from hammering layout.</p>
+      </section>
+
+      <section class="comp" id="zoomer">
+        <div class="comp-head"><h2>Zoomer</h2><span class="comp-tag">camera controls</span></div>
+        <p class="purpose">Three stacked square icon buttons, vertically centered on the left
+          edge: zoom in, zoom out, fit-to-scene.</p>
+<pre><code>&lt;div class="zoomer" id="zoomer"&gt;
+  &lt;button id="zoom-in"&gt;+&lt;/button&gt;
+  &lt;button id="zoom-out"&gt;−&lt;/button&gt;
+  &lt;button id="zoom-fit"&gt;⤢&lt;/button&gt;
+&lt;/div&gt;</code></pre>
+<pre><code>.zoomer { position: fixed; left: 18px; top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 6px; z-index: 4; }
+.zoomer button { width: 34px; height: 34px; border-radius: 4px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  font-size: 16px; box-shadow: var(--bevel); display: grid; place-items: center; }
+.zoomer button:hover { border-color: var(--amber); color: var(--amber); }</code></pre>
+        <p>On mobile it drops to <code class="inline">top: auto; bottom: calc(var(--dock-h) + 24px)</code>
+          so it never collides with the sheet/dock stack at the bottom of the screen.</p>
+      </section>
+
+      <section class="comp" id="inspector">
+        <div class="comp-head"><h2>Inspector</h2><span class="comp-tag">right panel · the data one</span></div>
+        <p class="purpose">The panel doing the most work: a scrollable right-side card that
+          narrates whatever is currently selected, followed by a stack of independent
+          <code class="inline">.sec</code> sections — a live data sheet, material-share bars, a
+          token trail, and a station picker. Each section is a self-contained pattern you can
+          mix and match.</p>
+
+        <h3 class="sub">Shell + narration card</h3>
+<pre><code>.inspector { position: fixed; top: 76px; right: 14px; bottom: 132px; width: 376px;
+  overflow-y: auto; padding: 14px; border-radius: 6px;
+  background: var(--panel); border: 1px solid var(--line);
+  box-shadow: var(--shadow), var(--bevel); z-index: 3; }
+
+.stage-card { padding-bottom: 12px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+.chip { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .09em;
+  text-transform: uppercase; padding: 3px 8px; border-radius: 3px; border: 1px solid var(--line);
+  background: rgba(224,160,44,.12); color: var(--amber); }   /* recolored per-state in JS */</code></pre>
+        <p>The chip's color is set inline from the selected object's own color, not a fixed
+          class — <code class="inline">stage-chip.style.background = hexA(s.color, 0.14)</code> —
+          so one station-detail card can carry a different accent per station while everything
+          else in the panel stays neutral.</p>
+        <p>A thin progress bar (<code class="inline">.dwell</code>) appears under the card text
+          only while the sim is deliberately holding on something worth reading — width tied
+          directly to a countdown value, not a CSS animation, so pausing the sim pauses the bar.</p>
+
+        <h3 class="sub">Data sheet rows — the "graph" numbers</h3>
+        <p>This is the pattern behind every live number in the panel: a label/value row, with an
+          optional <code class="inline">calc</code> modifier (marks a value as <em>derived</em>,
+          not input) and an optional <code class="inline">warn</code> modifier.</p>
+<pre><code>function rows(list) {
+  return list.map(function (r) {
+    var cls = 'row' + (r[2] ? ' calc' : '') + (r[3] ? ' warn' : '');
+    return '&lt;div class="' + cls + '"&gt;&lt;span&gt;' + r[0] + '&lt;/span&gt;&lt;b&gt;' + r[1] + '&lt;/b&gt;&lt;/div&gt;';
+  }).join('');
+}
+// e.g. rows([['Chamber pressure', '300 bar', false], ['Exit Mach', '4.12', true]])</code></pre>
+<pre><code>.sheet .row { display: flex; justify-content: space-between; align-items: baseline;
+  gap: 10px; padding: 4px 7px; border-radius: 3px; font-size: 11.5px;
+  background: rgba(0,0,0,.16); }
+.sheet .row span { color: var(--ink-dim); }
+.sheet .row b { font-family: var(--mono); color: var(--ink); font-weight: 600; }
+
+/* a computed row gets tinted amber and a tiny ƒ mark, so it reads
+   as "worked out live" rather than "typed in" at a glance */
+.sheet .row.calc { background: rgba(224,160,44,.07); }
+.sheet .row.calc b { color: var(--amber); }
+.sheet .row.calc span::after { content: "ƒ"; font-family: var(--mono); font-size: 9px;
+  color: var(--amber); opacity: .55; margin-left: 5px; }
+
+.sheet .row.warn { background: rgba(226,101,58,.14); }
+.sheet .row.warn b { color: var(--ember); }
+.sheet .row.big { margin-top: 4px; padding: 7px; }     /* headline total row */
+.sheet .row.big b { font-size: 14px; }</code></pre>
+        <div class="callout"><span class="mark">This is the "sexy numbers" part</span>&nbsp;
+          There's no charting library involved — the whole effect is a monospace value, a color
+          rule tied to whether the number is raw input vs. derived, and one warn state. It reads
+          as instrumentation because of that consistent input/derived/warn vocabulary, repeated
+          everywhere a number appears (sheet rows, HUD chips, flight telemetry).</div>
+
+        <h3 class="sub">Material bars</h3>
+        <p>A percentage bar-chart row, driven entirely by data, no fixed categories in markup:</p>
+<pre><code>list.map(function (m) {
+  var v = s.materials[m.id];
+  return '&lt;div class="bar"&gt;&lt;span class="lbl"&gt;' + m.name + '&lt;/span&gt;' +
+    '&lt;span class="track"&gt;&lt;span class="fill" style="width:' + (v/max*100).toFixed(1) +
+    '%;background:' + m.color + '"&gt;&lt;/span&gt;&lt;/span&gt;' +
+    '&lt;span class="val"&gt;' + (v/total*100).toFixed(0) + '%&lt;/span&gt;&lt;/div&gt;';
+}).join('')</code></pre>
+<pre><code>.bar { display: grid; grid-template-columns: 96px 1fr 34px; align-items: center;
+  gap: 8px; font-size: 11px; }
+.bar .track { height: 7px; border-radius: 4px; background: rgba(0,0,0,.35); overflow: hidden; }
+.bar .fill { display: block; height: 100%; border-radius: 4px; }   /* color set inline, per-item */
+.bar .val { font-family: var(--mono); font-size: 10.5px; color: var(--ink-fine); text-align: right; }</code></pre>
+
+        <h3 class="sub">Traveller tokens + output log</h3>
+        <p>A wrapping row of small pill tokens for a history trail (most recent one gets a
+          <code class="inline">.focus</code> highlight), and a separate append-only "output"
+          list styled as terminal lines with a blinking caret while still running.</p>
+<pre><code>.tokens { display: flex; flex-wrap: wrap; gap: 4px; }
+.tok { font-size: 10.5px; padding: 3px 7px; border-radius: 3px;
+  background: rgba(0,0,0,.25); border: 1px solid var(--line); color: var(--ink-dim); }
+.tok.focus { border-color: var(--amber); color: var(--amber); background: rgba(224,160,44,.12); }
+
+.unit { padding: 5px 8px; border-radius: 3px; background: rgba(110,220,110,.08);
+  border-left: 2px solid var(--green); color: var(--ink-dim); }
+.unit .no { font-family: var(--mono); color: var(--green); font-weight: 700; }
+.caret { color: var(--amber); animation: blink 1.1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }</code></pre>
+
+        <h3 class="sub">Section header pattern</h3>
+        <p>Every <code class="inline">.sec</code> uses the same header: small caps amber label,
+          hairline rule, optional right-aligned hint text. Reuse this for any new section you add.</p>
+<pre><code>.sec h3 { margin: 0 0 7px; font-size: 10.5px; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--amber); display: flex;
+  justify-content: space-between; align-items: baseline; gap: 8px;
+  border-bottom: 1px solid var(--line); padding-bottom: 5px; }
+.hint { font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 10px; color: var(--ink-fine); }</code></pre>
+
+        <h3 class="sub">Mobile: bottom sheet</h3>
+        <p>Under 900px the inspector collapses to just the narration card; a full-width
+          "grip" handle button expands it into a scrollable sheet over the whole lower screen.
+          All the same markup, no separate mobile component.</p>
+<pre><code>@media (max-width: 900px) {
+  .inspector { top: auto; left: 10px; right: 10px; bottom: calc(var(--dock-h,110px) + 18px);
+    width: auto; max-height: 30vh; }
+  .inspector.open { max-height: 64vh; }
+  .inspector .sec { display: none; }             /* hidden until pulled open */
+  .inspector.open .sec { display: block; }
+  .sheet-handle { display: flex; align-items: center; gap: 8px; width: 100%; }
+}</code></pre>
+      </section>
+
+      <section class="comp" id="dock">
+        <div class="comp-head"><h2>Dock / footer</h2><span class="comp-tag">bottom bar · parameters</span></div>
+        <p class="purpose">The other half of "customize parameters and watch values change":
+          a fixed bottom bar with an input+primary-action row, a transport-controls row, and a
+          row of range sliders that write straight into simulation state on <code class="inline">input</code>.</p>
+
+        <h3 class="sub">Structure</h3>
+<pre><code>&lt;footer class="dock" id="dock"&gt;
+  &lt;div class="dock-row dock-prompt"&gt;
+    &lt;label class="field grow"&gt;&lt;span&gt;Serial number&lt;/span&gt;&lt;input id="tag" type="text" /&gt;&lt;/label&gt;
+    &lt;button id="btn-run" class="primary"&gt;Build&lt;/button&gt;
+  &lt;/div&gt;
+  &lt;div class="dock-row"&gt;
+    &lt;div class="group transport"&gt;
+      &lt;button class="icon"&gt;❚❚&lt;/button&gt;&lt;button class="icon"&gt;⇥&lt;/button&gt;&lt;button class="icon"&gt;⟲&lt;/button&gt;
+    &lt;/div&gt;
+    &lt;button id="btn-tune" class="icon"&gt;⚙&lt;/button&gt;      &lt;!-- mobile-only reveal --&gt;
+    &lt;div class="dock-tune" id="dock-tune"&gt;
+      &lt;label class="field slider"&gt;&lt;span&gt;Chamber pressure &lt;b id="v-pc"&gt;300 bar&lt;/b&gt;&lt;/span&gt;
+        &lt;input id="pc" type="range" min="100" max="350" step="5" value="300" /&gt;&lt;/label&gt;
+      &lt;!-- ...repeat per parameter --&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/footer&gt;</code></pre>
+
+        <h3 class="sub">Slider → live value binding</h3>
+        <p>One helper wires every slider: write the raw value into sim state, and format the
+          same value into the adjacent <code class="inline">&lt;b&gt;</code> label. This is the
+          exact mechanism that lets a footer control feed the inspector's data sheet — the
+          slider mutates shared state, the next paint cycle recomputes the sheet from it.</p>
+<pre><code>function bindRange(id, out, fn) {
+  var input = el[id];
+  var apply = function () { el[out].textContent = fn(parseFloat(input.value)); };
+  input.addEventListener('input', apply);
+  apply();
+}
+bindRange('pc', 'v-pc', function (v) { Sim.state.chamberBar = v; return (v|0) + ' bar'; });</code></pre>
+
+        <h3 class="sub">Style</h3>
+<pre><code>.dock { position: fixed; left: 14px; right: calc(376px + 28px); bottom: 14px; z-index: 5;
+  padding: 10px 12px; border-radius: 6px; background: var(--panel);
+  border: 1px solid var(--line); box-shadow: var(--shadow), var(--bevel);
+  display: flex; flex-direction: column; gap: 9px; }
+.dock-row { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 10px; color: var(--ink-fine); }
+.field span { text-transform: uppercase; letter-spacing: .09em; font-weight: 600; }
+.field b { font-family: var(--mono); color: var(--amber); font-weight: 700; }
+
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none;
+  width: 14px; height: 14px; margin-top: -5.5px; border-radius: 3px;
+  background: var(--amber); border: 1px solid rgba(0,0,0,.5); }
+
+button.primary { background: linear-gradient(180deg, var(--amber-lit), var(--amber));
+  border-color: rgba(0,0,0,.5); color: #241c0c; font-weight: 700;
+  letter-spacing: .05em; text-transform: uppercase; }
+button.icon { width: 36px; padding: 8px 0; display: grid; place-items: center; font-size: 13px; }</code></pre>
+
+        <h3 class="sub">Mobile: sliders behind a gear</h3>
+        <p>Under 900px the dock shrinks to just the input row and transport icons; the slider
+          row (<code class="inline">.dock-tune</code>) is hidden and only appears when the gear
+          button toggles a <code class="inline">.tune-open</code> class on the dock.</p>
+<pre><code>#btn-tune { display: none; }               /* desktop: not needed, all sliders visible */
+.dock-tune { display: contents; }          /* desktop: just flows into the row */
+
+@media (max-width: 900px) {
+  #btn-tune { display: grid; }
+  .dock-tune { display: none; flex-basis: 100%; flex-wrap: wrap; gap: 8px; }
+  .dock.tune-open .dock-tune { display: flex; }
+}</code></pre>
+      </section>
+
+      <section class="comp" id="porting">
+        <div class="comp-head"><h2>Porting notes</h2><span class="comp-tag">applying this to another project</span></div>
+        <p class="purpose">The target project already has equivalent panels with different
+          names and its own data model — here's the order that gets to visual parity fastest.</p>
+        <h3 class="sub">1. Tokens first</h3>
+        <p>Drop the seven custom properties from <a href="#tokens">Tokens</a> into the target's
+          root stylesheet, substituting its own accent hex for <code class="inline">--amber</code>.
+          Nothing else can look right until this exists.</p>
+        <h3 class="sub">2. The vocabulary, not the copy</h3>
+        <p>Don't port English strings ("Shop", "Station", "Build") — port the <em>structural</em>
+          pattern: a HUD item is always <code class="inline">label + mono value</code>; a sheet
+          row is always <code class="inline">label + value</code>, with <code class="inline">.calc</code>
+          for anything derived and <code class="inline">.warn</code> for anything out of range.
+          Map the target's own field names onto that same three-state vocabulary.</p>
+        <h3 class="sub">3. Bars and rows are generic renderers</h3>
+        <p>The <code class="inline">rows()</code> helper and the material-bar map function both
+          take plain arrays/objects — they have no knowledge of rocket engines. Point them at
+          the target project's existing data (whatever numbers its own inspector/footer already
+          show) and the visual output is this kit's output.</p>
+        <h3 class="sub">4. Layout measurement, then responsive</h3>
+        <p>Wire up <code class="inline">measureLayout()</code> / <code class="inline">setVar()</code>
+          against the target's actual topbar and dock elements before touching the mobile
+          breakpoint rules — the fixed-position math for HUD/zoomer/inspector all depends on
+          those two variables existing first.</p>
+      </section>
+
+    </main>
+  </div>
+
+  <footer class="end">Reference compiled from the Rocket Engine Works source (index.html, css/styles.css, js/ui.js, js/main.js) for reuse in a second project with an equivalent but differently-styled UI.</footer>
+</div>
