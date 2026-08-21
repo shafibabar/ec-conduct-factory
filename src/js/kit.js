@@ -517,20 +517,42 @@
 
     Iso.box(ctx, { x: x - 0.19, y: y - 0.19, z: z0, w: 0.38, d: 0.38, h: 0.34,
                    color: M.iron });
+
+    /* enhanced arm with thicker stroke and elbow detail */
     ctx.strokeStyle = color || M.brass;
     ctx.lineWidth = o.lw || 3.2;
     ctx.lineCap = 'round';
+
+    /* main arm link */
     ctx.beginPath();
     ctx.moveTo(base.x, base.y);
     ctx.lineTo(tip.x, tip.y);
     ctx.stroke();
+
+    /* add elbow joint visual — halfway point gets a small reinforcement */
+    var midX = base.x + (tip.x - base.x) * 0.5;
+    var midY = base.y + (tip.y - base.y) * 0.5;
+    ctx.fillStyle = color || M.brass;
+    ctx.beginPath();
+    ctx.arc(midX, midY, (o.lw || 3.2) * 0.6, 0, 6.2832);
+    ctx.fill();
+
     ctx.lineCap = 'butt';
 
     /* the claw carries something home on the return half of the swing */
     var carrying = (o.carry != null) ? o.carry : (swing > 0.5);
+    var clawSize = o.claw || 3.4;
+
+    /* claw with enhanced detail */
     ctx.fillStyle = carrying ? (o.payload || PAPER.full) : M.steelD;
     ctx.beginPath();
-    ctx.arc(tip.x, tip.y, o.claw || 3.4, 0, 6.2832);
+    ctx.arc(tip.x, tip.y, clawSize, 0, 6.2832);
+    ctx.fill();
+
+    /* claw highlight for depth */
+    ctx.fillStyle = carrying ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)';
+    ctx.beginPath();
+    ctx.arc(tip.x + clawSize * 0.3, tip.y - clawSize * 0.3, clawSize * 0.35, 0, 6.2832);
     ctx.fill();
   }
 
@@ -925,16 +947,26 @@
     /* side rails */
     lbox(a0, -HW, len, 0.10, DECK, 0.13, M.iron);
     lbox(a0, HW - 0.10, len, 0.10, DECK, 0.13, M.iron);
-    /* rollers, running across the table */
+    /* rollers, running across the table — animated when payload moves */
     var rollers = Math.max(3, Math.round(len / 0.30));
+    var movementPhase = (segLin(p, 0.08, 0.28) + segLin(p, 0.74, 0.90)) * 0.5; /* combined up + down */
     for (i = 0; i < rollers; i++) {
       ly = a0 + (i + 0.5) * len / rollers;
+      /* roller spin: add rotation offset based on movement phase */
+      var spinOffset = movementPhase * Math.PI * 2;  /* full rotation during movement */
+      var rotateSeed = (i * 0.618 + spinOffset) % (Math.PI * 2);
+
       Iso.orientedBox(ctx, {
         x: LX(ly, 0), y: LY(ly, 0), z: DECK + 0.02,
         hx: vert ? 1 : 0, hy: vert ? 0 : 1,
         len: HW * 2 - 0.20, wid: 0.13, h: 0.09,
         color: i % 2 ? M.steel : M.steelD
       });
+      /* add visual grooves to indicate rotation */
+      ctx.fillStyle = 'rgba(60,50,40,0.35)';
+      var grooveA = rotateSeed, grooveB = rotateSeed + Math.PI / 2;
+      Iso.disc(ctx, LX(ly, -0.02), LY(ly, -0.02), DECK + 0.13, 0.04);
+      Iso.disc(ctx, LX(ly, 0.02), LY(ly, 0.02), DECK + 0.13, 0.04);
     }
 
     if (o.label) {
@@ -950,9 +982,16 @@
     var waiting = Math.round(q * slots);
     for (i = 0; i < waiting; i++) {
       ly = mA + dir * (0.36 + i * 0.42);
-      lbox(ly - 0.14, -0.19, 0.28, 0.38, DECK + 0.11, 0.19,
-           o.over ? (i % 2 ? '#b8503c' : '#a0432f')
-                  : (i % 2 ? PAPER.mid : PAPER.dark));
+      var qColor = o.over ? (i % 2 ? '#b8503c' : '#a0432f')
+                          : (i % 2 ? PAPER.mid : PAPER.dark);
+      lbox(ly - 0.14, -0.19, 0.28, 0.38, DECK + 0.11, 0.19, qColor);
+
+      /* add visual detail to queue blocks — stack indicator */
+      var darkColor = o.over ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.15)';
+      ctx.fillStyle = darkColor;
+      Iso.box(ctx, vert
+        ? { x: cr - 0.19, y: ly - 0.14, z: DECK + 0.26, w: 0.38, d: 0.28, h: 0.04 }
+        : { x: ly - 0.14, y: cr - 0.19, z: DECK + 0.26, w: 0.28, d: 0.38, h: 0.04 });
     }
     if (o.over && waiting) {
       ctx.fillStyle = 'rgba(255,110,80,' + (0.45 + 0.45 * Math.abs(Math.sin(clk * 4))).toFixed(2) + ')';
@@ -962,15 +1001,24 @@
     /* --- the payload, on its way up to the machine and back down --- */
     var up   = segLin(p, (o.upRun   || [0.08, 0.28])[0], (o.upRun   || [0.08, 0.28])[1]);
     var down = segLin(p, (o.downRun || [0.74, 0.90])[0], (o.downRun || [0.74, 0.90])[1]);
+
     if (p > 0 && up > 0 && up < 1) {
       ly = bA - dir * up * len;
       ctx.fillStyle = PAPER.full;
       Iso.disc(ctx, LX(ly, 0), LY(ly, 0), DECK + 0.20, 0.14);
+      /* add guide rail shadows to show payload motion path */
+      ctx.fillStyle = 'rgba(60,50,40,0.25)';
+      Iso.disc(ctx, LX(ly, -HW * 0.7), LY(ly, -HW * 0.7), DECK + 0.20, 0.03);
+      Iso.disc(ctx, LX(ly, HW * 0.7), LY(ly, HW * 0.7), DECK + 0.20, 0.03);
     }
     if (p > 0 && down > 0 && down < 1) {
       ly = mA + dir * down * len;
       ctx.fillStyle = Iso.mix(PAPER.full, AC, 0.45);
       Iso.disc(ctx, LX(ly, 0), LY(ly, 0), DECK + 0.20, 0.14);
+      /* guide rail shadows on return path */
+      ctx.fillStyle = 'rgba(60,50,40,0.25)';
+      Iso.disc(ctx, LX(ly, -HW * 0.7), LY(ly, -HW * 0.7), DECK + 0.20, 0.03);
+      Iso.disc(ctx, LX(ly, HW * 0.7), LY(ly, HW * 0.7), DECK + 0.20, 0.03);
     }
 
     /* --- the arms, at the belt end. Intake reaches upstream, outfeed places
