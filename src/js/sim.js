@@ -81,6 +81,13 @@
     bulkBytes:        0,
     auditEventsEmitted: 0,
 
+    /* ---- package transformation state (for visual morphing) ----
+     * packageState: which stage the communication is at (RAW → INGESTED → ... → INDEXED)
+     * packageT: normalized progress through current transformation (0–1)
+     * These drive drawCarrier() to interpolate geometry during dwell. */
+    packageState: 'RAW',
+    packageT: 0,
+
     /* ---- the record keeper's own books ----
      * ec-centralised-audit left the belt, so charge() never runs for it. These
      * are kept by the simulation instead, which is the truer arrangement: they
@@ -215,6 +222,21 @@
       state.esIndexName   = v.esIndexName;
       state.isAudio       = v.isAudio;
     }
+
+    /* Update packageState based on station. These transitions drive the visual
+       transformation in drawCarrier() during the dwell (reading stop) that
+       follows fire(). Each state represents a stage in the communication's
+       journey: it starts RAW with full payload, progressively sheds mass and
+       gains verdict marks, and ends INDEXED when it reaches the bulk press. */
+    if (id === 'gateway')   state.packageState = 'INGESTED';
+    if (id === 'qualifier') state.packageState = 'QUALIFIED';
+    if (id === 'filter')    state.packageState = 'EVALUATED';
+    if (id === 'evaluator') state.packageState = 'SURVEILLED';
+    if (id === 'quota')     state.packageState = 'SAMPLED';
+    if (id === 'alerting')  state.packageState = 'ALERTED';
+    if (id === 'echo')      state.packageState = 'ECHO_EVALUATED';
+    if (id === 'indexer')   state.packageState = 'INDEXED';
+
     return ph;
   }
 
@@ -227,6 +249,8 @@
     state.plan = planNow();
     state.fastForward = state.trips > 0;
     state.sampled = false;
+    state.packageState = 'RAW';
+    state.packageT = 0;
     state.bytesDownloaded  = 0;
     state.bytesAfterMinify = 0;
     /* Seeded from the plan rather than zeroed. These three are pure functions
@@ -439,7 +463,10 @@
      audited not-qualified outcome and the record never reaches evaluation, so
      the journey ends at the qualifier. Reachable by dragging People to zero. */
   function applyQualifierGate() {
-    if (state.pipelineIds === 0) endRunHere();
+    if (state.pipelineIds === 0) {
+      state.packageState = 'TERMINATED';
+      endRunHere();
+    }
   }
 
   /* Fork two — Flow B2, at the filter: every pipeline was either suppressed by
@@ -462,13 +489,19 @@
      sampling. Reachable by pushing Cognition past the ceiling with Content%
      at 100. */
   function applyEvaluatorGate() {
-    if (state.evaluatorStalled) endRunHere();
+    if (state.evaluatorStalled) {
+      state.packageState = 'TERMINATED';
+      endRunHere();
+    }
   }
 
   /* Fork four — Flow B3, at the quota manager: sampled continues to alerting,
      not sampled skips alerting, echo and the indexer. */
   function applyGate() {
-    if (!state.sampled) endRunHere();
+    if (!state.sampled) {
+      state.packageState = 'TERMINATED';
+      endRunHere();
+    }
   }
 
   var RECON_SECONDS = 3.2;
@@ -521,7 +554,10 @@
     if (van.dwell > 0) {
       van.dwell -= dt * state.speed;
       state.dwellLeft = Math.max(0, van.dwell);
-      if (van.dwell <= 0) { state.reading = false; state.dwellTotal = 0; }
+      /* Update packageT: progress from 0 to 1 over the dwell duration.
+         drawCarrier() uses this to interpolate between states. */
+      state.packageT = state.dwellTotal > 0 ? (state.dwellTotal - state.dwellLeft) / state.dwellTotal : 0;
+      if (van.dwell <= 0) { state.reading = false; state.dwellTotal = 0; state.packageT = 1; }
       return;
     }
 
