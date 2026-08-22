@@ -3239,14 +3239,25 @@
    * The analogue here runs the other way: a communication does not grow, it
    * SHEDS. ec-gateway strips the message body, so the payload block loses most
    * of its mass at station one, and everything after that is verdicts, stamps
-   * and receipts attaching to a much smaller object.
+   * and shape changes attaching to a much smaller object.
    *
-   * Every part is keyed off state.charged, which records the stations this trip
-   * has actually fired — so on the short route (not sampled) the alert crates
-   * and the index chip never appear, and you can see that they didn't.
+   * Copied from rocket-engine's drawEngine(): state.level is an integer set the
+   * instant a station fires (see charge() in sim.js), and drawCarrier() draws
+   * cumulatively — every level a station has passed keeps drawing, so nothing
+   * a station has done is erased by a later one. The dwell that follows a
+   * station firing is reading time, not animation time; there is no lerp here
+   * on purpose, the object pops to its new state and holds it.
+   *
+   * The route forks, which a plain level comparison cannot express on its own
+   * — the short route skips alerting, echo and the indexer entirely. Those
+   * three parts are gated on state.charged (the stations this trip actually
+   * fired), not on level, so on a not-sampled run they are visibly absent.
    * ---------------------------------------------------------------------- */
 
-  /* Place a part in carrier-local space: u runs along the heading, v across. */
+  /* Place a part in carrier-local space: u runs along the heading, v across.
+     Every part on the carrier goes through this — never Iso.box, which is
+     axis-aligned and would sit square to the world while the skid turns
+     under it. */
   function carrierPart(f, u, v, z, len, wid, h, color, edge) {
     Iso.orientedBox(ctx, {
       x: f.x + f.hx * u - f.hy * v,
@@ -3259,187 +3270,133 @@
   function cpx(f, u, v) { return f.x + f.hx * u - f.hy * v; }
   function cpy(f, u, v) { return f.y + f.hy * u + f.hx * v; }
 
+  /* The halo's tint: the colour of whichever machine currently has the
+     carrier, so the ping reads as "this machine has it now" rather than a
+     generic marker. Neutral belt amber while nothing is holding it. */
+  function carrierHaloColor(s) {
+    if (s.dwellLeft > 0 && s.station) {
+      var idx = World.STATION_IDX_BY_ID[s.station];
+      if (idx != null) return World.STATIONS_FLAT[idx].color;
+    }
+    return Factory.C.hazardAmber;
+  }
+
+  var LEVEL = Sim.LEVEL;
+
   function drawCarrier(vanPos, s) {
-    /* PACKAGE TRANSFORMATION AND RENDERING
-
-       This function is called every frame to render the communication package
-       traveling on the belt. It currently shows the package with different
-       parts appearing/disappearing as charge() sets state fields for each
-       station (done.gateway, done.qualifier, etc.).
-
-       PHASE 2/3 ENHANCEMENT:
-
-       The package should visually TRANSFORM during each dwell (reading stop).
-       Instead of instant appearance/disappearance, parts should:
-
-         1. Compress/compact/shrink (gateway: payload reduced by 60%)
-         2. Gain markers and tags (qualifier: pipeline tags grow)
-         3. Darken/change appearance (policies applied)
-         4. Seal/lock (indicate sampled/indexed state)
-         5. Fork visually if terminal gate taken (divert path at machine)
-
-       Timing: Use Sim.state.dwellLeft / Sim.state.dwellTotal to lerp between
-       states during the dwell. When dwellLeft = 0 (dwell expired), show the
-       fully transformed package.
-
-       Current state markers (s.charged) indicate which stations have fired.
-       New state marker (s.packageState) will indicate which transformation
-       stage the package is in: RAW → INGESTED → QUALIFIED → EVALUATED →
-       SURVEILLED → SAMPLED → ALERTED → ECHO_EVALUATED → INDEXED → TERMINATED.
-
-       The package's size, color, and parts should evolve as it moves through
-       these stages, creating the visual narrative that "the communication loses
-       mass and gains verdicts" as it travels through the surveillance system.
-    */
     if (!s.running && !s.finished) return;
 
-    /* Transform the heading vector through isometric projection.
-       vanPos.dx/dy are in world space; we need them in isometric space
-       to match the belt's visual orientation. The projection matrix is:
-       x_iso = (x - y) * TW, y_iso = (x + y) * TH.
-       For a heading vector, apply the same transform (without translation). */
-    var TW = 30, TH = 15;  /* match iso.js constants */
-    var dx_iso = (vanPos.dx - vanPos.dy) * TW;
-    var dy_iso = (vanPos.dx + vanPos.dy) * TH;
-    var m = Math.hypot(dx_iso, dy_iso) || 1;
-    var f = { x: vanPos.x, y: vanPos.y,
-              hx: dx_iso / m, hy: dy_iso / m };
+    /* The raw world-space heading — not a screen-space one. orientedBox()
+       builds its footprint in world grid space from hx/hy and only then
+       projects, so feeding it anything already run through the iso matrix
+       rotates the box in the world before the world is projected, and every
+       part on the carrier ends up skewed off the belt. smoothAt() already
+       returns a normalised world dx/dy that swings through corners instead
+       of snapping at them; nothing further is needed. */
+    var f = { x: vanPos.x, y: vanPos.y, hx: vanPos.dx || 1, hy: vanPos.dy || 0 };
     var done = s.charged || {};
+    var L = s.level;
     var i;
 
-    /* Helper functions for interpolation during dwell. */
-    function lerp(a, b, t) { return a + (b - a) * t; }
-    function lerpColor(c1, c2, t) {
-      var r1 = parseInt(c1.slice(1, 3), 16), g1 = parseInt(c1.slice(3, 5), 16), b1 = parseInt(c1.slice(5, 7), 16);
-      var r2 = parseInt(c2.slice(1, 3), 16), g2 = parseInt(c2.slice(3, 5), 16), b2 = parseInt(c2.slice(5, 7), 16);
-      var r = Math.round(lerp(r1, r2, t)), g = Math.round(lerp(g1, g2, t)), b = Math.round(lerp(b1, b2, t));
-      return '#' + ('0' + r.toString(16)).slice(-2) + ('0' + g.toString(16)).slice(-2) + ('0' + b.toString(16)).slice(-2);
-    }
-
-    /* The belt now stands off the slab, so everything on the carrier is lifted
+    /* The belt stands off the slab, so everything on the carrier is lifted
        by that height — otherwise the skid sinks into the deck it rides on. */
     var BZ = (Factory.BELT_H != null) ? Factory.BELT_H : 0;
 
-    /* ---- PULSATING HALO RING around the carrier ----
-       A glowing ring that animates with the carrier's position, providing
-       visual depth and drawing attention to the moving package. */
-    var haloPhase = Math.sin(clk * 3.2) * 0.25;  /* pulse ±0.25 amplitude */
-    var baseHaloR = 1.35;
-    var haloR = baseHaloR + haloPhase;
-    var haloPos = Iso.project(vanPos.x, vanPos.y, BZ + 0.15);
+    /* ---- ground-plane ping, tracking the carrier -----
+       Ported from rocket-engine's drawZones() active-station ring
+       (js/render.js:205-214), relocated to follow the carrier instead of
+       marking a fixed station — the timing, growth and fade are reproduced
+       exactly, only the position source changed. Emitted first, as a ground
+       decal, so the skid paints over it: the carrier is one item in the
+       floor's depth-sorted pass (see FLOOR-TOPOLOGY.md), and the halo has to
+       stay inside that one item rather than become a second sortable one. */
+    var haloColor = carrierHaloColor(s);
+    var hp = Iso.project(vanPos.x, vanPos.y, BZ + 0.02);
+    var haloR = 1.3;   // clears the 2.10×1.46 skid without swallowing it
 
-    /* Outer halo glow (very faint) */
-    ctx.strokeStyle = 'rgba(200, 180, 100, 0.12)';
-    ctx.lineWidth = 4;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.arc(haloPos.x, haloPos.y, haloR * 1.2 * TW * 1.414, 0, 6.2832);
-    ctx.stroke();
-
-    /* Mid-tone halo (pulsing brightness) */
-    ctx.strokeStyle = 'rgba(200, 180, 100, ' + (0.20 + 0.15 * Math.sin(clk * 3.2)).toFixed(2) + ')';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(haloPos.x, haloPos.y, haloR * TW * 1.414, 0, 6.2832);
-    ctx.stroke();
-
-    /* Inner accent ring (sharper) */
-    ctx.strokeStyle = 'rgba(200, 180, 100, ' + (0.35 + 0.2 * Math.sin(clk * 3.2 + 1)).toFixed(2) + ')';
+    ctx.fillStyle = Iso.rgba(haloColor, 0.10);
+    Iso.disc(ctx, vanPos.x, vanPos.y, BZ + 0.02, haloR);
+    ctx.strokeStyle = Iso.rgba(haloColor, 0.55);
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.arc(haloPos.x, haloPos.y, haloR * 0.8 * TW * 1.414, 0, 6.2832);
+    ctx.ellipse(hp.x, hp.y, haloR * Iso.TW * 1.414, haloR * Iso.TH * 1.414, 0, 0, 6.2832);
     ctx.stroke();
 
-    /* PACKAGE TRANSFORMATION STATE & TIMING
-       packageState: which stage we're in (RAW, INGESTED, QUALIFIED, etc.)
-       packageT: progress 0→1 through the current transformation
-       Used to interpolate geometry and color during dwell. */
-    var pState = s.packageState || 'RAW';
-    var pT = s.packageT || 0;
+    var ringPhase = (clk * 0.6) % 1;   // sawtooth: born bright, dies at full extent
+    ctx.strokeStyle = Iso.rgba(haloColor, 0.45 * (1 - ringPhase));
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(hp.x, hp.y,
+                haloR * Iso.TW * 1.414 * (1 + ringPhase * 0.35),
+                haloR * Iso.TH * 1.414 * (1 + ringPhase * 0.35), 0, 0, 6.2832);
+    ctx.stroke();
 
     /* skid and deck */
     carrierPart(f, 0, 0, BZ + 0.06, 2.10, 1.46, 0.14, '#151922', false);
     carrierPart(f, 0, 0, BZ + 0.20, 1.94, 1.30, 0.10, '#2c3446', false);
 
-    /* ---- the payload ----
-       Transforms from RAW (full document, 1.52×1.10×0.80, warm) to INGESTED
-       (stripped, 0.66×0.56×0.36, cool) during gateway dwell.
-
-       Interpolation during dwell: pState='INGESTED' and pT goes 0→1.
-       After gateway fires: pState will be INGESTED or beyond, pT=1 (fully transformed).
-    */
-    var payloadRaw = { u: 0, len: 1.52, wid: 1.10, h: 0.80, color: '#c9c2ae' };
-    var payloadIngested = { u: -0.48, len: 0.66, wid: 0.56, h: 0.36, color: '#78839a' };
-    var payloadState = payloadRaw;
-    if (pState !== 'RAW') {
-      /* Lerp if transitioning to INGESTED; use INGESTED if beyond it. */
-      if (pState === 'INGESTED') {
-        payloadState = {
-          u: lerp(payloadRaw.u, payloadIngested.u, pT),
-          len: lerp(payloadRaw.len, payloadIngested.len, pT),
-          wid: lerp(payloadRaw.wid, payloadIngested.wid, pT),
-          h: lerp(payloadRaw.h, payloadIngested.h, pT),
-          color: lerpColor(payloadRaw.color, payloadIngested.color, pT)
-        };
-      } else {
-        payloadState = payloadIngested;
-      }
+    if (!L) {
+      /* nothing has fired yet: the payload sits exactly as it arrived */
+      carrierPart(f, 0, 0, BZ + 0.30, 1.52, 1.10, 0.80, '#c9c2ae', 'rgba(0,0,0,0.35)');
+      return;
     }
-    carrierPart(f, payloadState.u, 0, BZ + 0.30,
-      payloadState.len, payloadState.wid, payloadState.h,
-      payloadState.color, 'rgba(0,0,0,0.35)');
 
-    /* ---- pipeline tags: one upright plate per matched pipeline ----
-       Appear at QUALIFIED (0.24 high, grey) and grow to EVALUATED (0.44 high, amber)
-       during filter dwell.
+    /* ---- ec-gateway: SUBTRACTION -----
+       The station strips the message body, so the payload loses most of its
+       mass here — the one part of the carrier that shrinks rather than
+       accretes. Everything below attaches to this smaller object. */
+    var payload = (L >= LEVEL.gateway)
+      ? { u: -0.48, len: 0.66, wid: 0.56, h: 0.36, color: '#78839a' }
+      : { u: 0,     len: 1.52, wid: 1.10, h: 0.80, color: '#c9c2ae' };
+    carrierPart(f, payload.u, 0, BZ + 0.30, payload.len, payload.wid, payload.h,
+                payload.color, 'rgba(0,0,0,0.35)');
 
-       Interpolation: pState='QUALIFIED' or 'EVALUATED' renders them; lerp when
-       pState='EVALUATED' and pT is between 0–1.
-    */
-    if (pState !== 'RAW' && pState !== 'INGESTED') {
+    /* ---- ec-queue-qualifier: ADDITION -----
+       One upright tag plate per matched pipeline — new geometry that stays. */
+    if (L >= LEVEL.qualifier) {
       var pipes = Math.min(4, s.pipelineCount || 2);
-      var tagQualified = { h: 0.24, color: '#485266' };
-      var tagEvaluated = { h: 0.44, color: '#e0b840' };
-      var tagState = tagQualified;
-      if (pState !== 'QUALIFIED') {
-        /* Lerp if transitioning to EVALUATED; use EVALUATED if beyond it. */
-        if (pState === 'EVALUATED') {
-          tagState = {
-            h: lerp(tagQualified.h, tagEvaluated.h, pT),
-            color: lerpColor(tagQualified.color, tagEvaluated.color, pT)
-          };
-        } else {
-          tagState = tagEvaluated;
-        }
+      /* ---- ec-surveillance-filter: STATE CHANGE -----
+         Policy verdicts land on these same tags — grey to amber — with no
+         change to their size. Silhouette unchanged, finish changed. */
+      var tagColor = (L >= LEVEL.filter) ? '#e0b840' : '#485266';
+      /* ---- ec-surveillance-policy-evaluator: SHAPE CHANGE -----
+         The same tags re-form around the metadata/content split: still
+         answerable locally, they stay short and flat; sent out to Cognition,
+         they stretch taller and thinner — the same matter, differently
+         shaped, not a new part. */
+      var tagH = 0.24, tagW = 0.18;
+      if (L >= LEVEL.evaluator) {
+        if ((s.sentToCognition || 0) > 0) { tagH = 0.52; tagW = 0.10; }
+        else                              { tagH = 0.20; tagW = 0.24; }
       }
       for (i = 0; i < pipes; i++) {
-        carrierPart(f, 0.30, -0.39 + i * 0.26, BZ + 0.30,
-                    0.14, 0.18, tagState.h, tagState.color, false);
+        carrierPart(f, 0.30, -0.39 + i * 0.26, BZ + 0.30, 0.14, tagW, tagH, tagColor, false);
+      }
+      /* Cognition pending: only while the evaluator itself holds the carrier
+         — once it has moved on the wait is already resolved in the plan, so
+         the antenna would be reporting a wait that is no longer happening. */
+      if (L === LEVEL.evaluator && (s.sentToCognition || 0) > 0) {
+        var ax = cpx(f, 0.74, 0), ay = cpy(f, 0.74, 0);
+        Iso.cylinder(ctx, { x: ax, y: ay, z: BZ + 0.30, r: 0.05, h: 0.52,
+                            color: '#1e5048', edge: false });
+        ctx.fillStyle = (Math.sin(clk * 5) > 0) ? '#7ce0d0' : '#20443e';
+        Iso.disc(ctx, ax, ay, BZ + 0.86, 0.11);
       }
     }
 
-    /* ---- Cognition pending: content policies are still out for evaluation --- */
-    if (pState !== 'RAW' && pState !== 'INGESTED' && pState !== 'QUALIFIED' &&
-        (s.sentToCognition || 0) > 0) {
-      var ax = cpx(f, 0.74, 0), ay = cpy(f, 0.74, 0);
-      Iso.cylinder(ctx, { x: ax, y: ay, z: BZ + 0.30, r: 0.05, h: 0.52,
-                          color: '#1e5048', edge: false });
-      ctx.fillStyle = (Math.sin(clk * 5) > 0) ? '#7ce0d0' : '#20443e';
-      Iso.disc(ctx, ax, ay, BZ + 0.86, 0.11);
-    }
-
-    /* ---- the sampling stamp: green if a human will read this, red if not ---
-       Appears at SAMPLED state and beyond. */
-    if (pState === 'SAMPLED' || pState === 'ALERTED' || pState === 'ECHO_EVALUATED' ||
-        pState === 'INDEXED' || pState === 'TERMINATED') {
+    /* ---- ec-surveillance-quota-manager: STATE CHANGE -----
+       The sampling verdict is a flat stamp — green if a human will read this,
+       red if not — with no volume of its own. Silhouette unchanged again. */
+    if (L >= LEVEL.quota) {
       ctx.fillStyle = s.sampled ? '#4ad066' : '#c04040';
       Iso.disc(ctx, cpx(f, -0.02, 0.50), cpy(f, -0.02, 0.50), BZ + 0.32, 0.17);
     }
 
-    /* ---- alert crates: one per sampled pipeline ----
-       Appear at ALERTED state and beyond. */
-    if (pState === 'ALERTED' || pState === 'ECHO_EVALUATED' ||
-        pState === 'INDEXED' || pState === 'TERMINATED') {
+    /* ---- ec-alerting-service: ADDITION -----
+       One crate per alert. Gated on charged.alerting, not level: a
+       not-sampled run never reaches this station, and the absence of crates
+       is the information. */
+    if (done.alerting) {
       var made = Math.min(3, s.alertsCreated || 0);
       for (i = 0; i < made; i++) {
         carrierPart(f, -0.06 + i * 0.32, 0.36, BZ + 0.40, 0.28, 0.28, 0.26,
@@ -3447,24 +3404,18 @@
       }
     }
 
-    /* ---- echo verdict: new, or a repeat of something already raised ----
-       Appears at ECHO_EVALUATED state and beyond. */
-    if (pState === 'ECHO_EVALUATED' || pState === 'INDEXED' || pState === 'TERMINATED') {
+    /* ---- ec-echo-engine: ADDITION -----
+       A verdict badge — new, or a repeat of something already raised. */
+    if (done.echo) {
       ctx.fillStyle = s.isEcho ? '#ff7060' : '#a870d8';
       Iso.disc(ctx, cpx(f, -0.58, -0.42), cpy(f, -0.58, -0.42), BZ + 0.42, 0.13);
     }
 
-    /* ---- index chip ----
-       Appears at INDEXED state and beyond. */
-    if (pState === 'INDEXED' || pState === 'TERMINATED') {
+    /* ---- ec-indexer: ADDITION -----
+       The index chip — the last mark a communication that reaches the end
+       of the line picks up. */
+    if (done.indexer) {
       carrierPart(f, -0.30, -0.40, BZ + 0.40, 0.32, 0.22, 0.13, '#e09040', false);
-    }
-
-    /* ---- audit receipts, stacked ---- */
-    var receipts = (done.audit ? 1 : 0) + (done.reporting ? 1 : 0);
-    for (i = 0; i < receipts; i++) {
-      carrierPart(f, 0.58, 0.28, BZ + 0.40 + i * 0.10, 0.42, 0.34, 0.09,
-                  i ? '#b0704c' : '#9a5038', false);
     }
 
     /* ---- latency gauge along the near side of the deck ----
@@ -3482,59 +3433,26 @@
                  gx0 + (gx1 - gx0) * frac, gy0 + (gy1 - gy0) * frac, 0.14, BZ + 0.33);
     }
 
-    /* ---- Terminal fork diversion chutes ----
-       When packageState === TERMINATED, draw a chute extending from the machine
-       and animate the package diverting into it. */
-    if (pState === 'TERMINATED' && s.terminalFork) {
-      var chuteSrc = s.station;
-      var chuteDir = null;  // offset direction perpendicular to belt heading
+    /* ---- terminal fork: stopped and closed out, not mid-journey -----
+       A fork leaves the carrier exactly where it was stopped — it does not
+       travel on — so there is nothing to animate: a static diversion chute
+       and a closed-out marker, both in the oriented frame from Part 1. No
+       Iso.box, no slip animation; the fork is a fact, not a transition. */
+    if (s.terminalFork) {
+      var chuteU = -0.6, chuteV = 0.5;   // southwest, off the line
+      var chuteX0 = cpx(f, 0, 0),           chuteY0 = cpy(f, 0, 0);
+      var chuteX1 = cpx(f, chuteU, chuteV), chuteY1 = cpy(f, chuteU, chuteV);
+      ctx.fillStyle = 'rgba(60,50,40,0.7)';
+      Iso.ribbon(ctx, chuteX0, chuteY0, chuteX1, chuteY1, 0.20, BZ + 0.25);
 
-      /* B1 at qualifier: chute extends southwest (left-down on screen) */
-      if (s.terminalFork === 'B1' && chuteSrc === 'qualifier') {
-        chuteDir = { u: -0.6, v: 0.5 };
-      }
-      /* C at evaluator: chute extends southwest */
-      else if (s.terminalFork === 'C' && chuteSrc === 'evaluator') {
-        chuteDir = { u: -0.6, v: 0.5 };
-      }
-      /* B3 at quota: chute extends southwest */
-      else if (s.terminalFork === 'B3' && chuteSrc === 'quota') {
-        chuteDir = { u: -0.6, v: 0.5 };
-      }
+      carrierPart(f, chuteU * 0.55, chuteV * 0.55, BZ + 0.20,
+                  payload.len * 0.6, payload.wid * 0.6, payload.h * 0.6,
+                  payload.color, 'rgba(0,0,0,0.4)');
 
-      if (chuteDir) {
-        /* Draw the chute structure extending from the carrier */
-        var chuteEnd = pT;  /* pT goes 0→1 over dwell */
-        var chuteX0 = cpx(f, 0, 0);
-        var chuteY0 = cpy(f, 0, 0);
-        var chuteX1 = cpx(f, chuteDir.u * chuteEnd, chuteDir.v * chuteEnd);
-        var chuteY1 = cpy(f, chuteDir.u * chuteEnd, chuteDir.v * chuteEnd);
-
-        /* Draw chute walls as ribbons */
-        ctx.fillStyle = 'rgba(60, 50, 40, 0.7)';
-        Iso.ribbon(ctx, chuteX0, chuteY0, chuteX1, chuteY1, 0.20, BZ + 0.25);
-
-        /* Animate package sliding into chute: move it partway down the chute */
-        if (pT > 0) {
-          var slipT = Math.min(1, pT * 1.5);  /* Accelerate into chute */
-          var pkgX = f.x + f.hx * (0 + chuteDir.u * slipT * 0.3) -
-                      f.hy * (0 + chuteDir.v * slipT * 0.3);
-          var pkgY = f.y + f.hy * (0 + chuteDir.u * slipT * 0.3) +
-                      f.hx * (0 + chuteDir.v * slipT * 0.3);
-
-          /* Draw package disappearing into chute */
-          var disappearT = Math.max(0, 1 - slipT * 2);
-          ctx.globalAlpha = disappearT;
-          Iso.box(ctx, {
-            x: pkgX, y: pkgY, z: BZ + 0.30 - slipT * 0.15,
-            w: payloadState.len * disappearT,
-            h: payloadState.h * disappearT,
-            d: payloadState.wid * disappearT,
-            color: payloadState.color
-          });
-          ctx.globalAlpha = 1;
-        }
-      }
+      var forkColor = { B1: '#6a5caa', C: '#3a8880', B3: '#c8a020' }[s.terminalFork] || '#902020';
+      ctx.fillStyle = forkColor;
+      Iso.disc(ctx, cpx(f, chuteU * 0.55, chuteV * 0.55), cpy(f, chuteU * 0.55, chuteV * 0.55),
+               BZ + 0.55, 0.12);
     }
   }
 

@@ -325,6 +325,43 @@ rebuilt machine outgrows its box, and set the label anchor explicitly in
   token and the echo fingerprint rendered as `NaN` in the narration; clicking a
   structure only ever flew the camera *halfway* to it, because `takeFlyTo()`
   handed main.js the target for a single 0.5 lerp.
+- **The carrier rebuilt against `CARRIER-REWORK-PROMPT.md`, ported from
+  rocket-engine's engine-on-the-belt pattern.** Three fixes in one pass:
+  - **Heading.** `drawCarrier()` was feeding `Iso.orientedBox` a heading
+    already rotated through the iso projection matrix, which rotates the
+    footprint in world space a second time before `prism()` projects it — the
+    skid sat 26.6° off the belt on the top run. Fixed to the raw world-space
+    `vanPos.dx/dy` `Iso.smoothAt()` already returns, exactly as
+    rocket-engine's `js/render.js:1331` does it. The local `TW`/`TH` constant
+    duplication that existed to compute the wrong heading is gone with it.
+  - **The halo.** The three concentric breathing `ctx.arc()` rings — circles,
+    not ellipses, so they read as a sticker floating over the floor rather
+    than a mark on it — are replaced with one ellipse ping ported verbatim
+    from rocket-engine's `drawZones()` active-station ring (`js/render.js:
+    205-214`): a sawtooth phase, not a sine, growing 35% and fading to
+    nothing over 1.667 s, tinted by whichever station currently holds the
+    carrier. Emitted first inside `drawCarrier()`, before the skid, so it
+    stays inside the carrier's one entry in the depth-sorted pass rather than
+    becoming a second sortable object that would flicker against the
+    machines.
+  - **Transformation.** The `packageState` string enum and `packageT` dwell
+    lerp — scaffolding that described a system but never worked, since a
+    string can't express a route that forks — are gone. In their place,
+    `Sim.LEVEL` (an integer per station, `sim.js`) is set the instant a
+    station fires, in `charge()`, before the dwell begins; `drawCarrier()`
+    draws cumulatively off that level, the same structure as rocket-engine's
+    `drawEngine()`, so nothing a station has done is erased by a later one.
+    Fork-dependent parts (alerting, echo, indexer) are gated on
+    `state.charged`, not level, so a not-sampled run visibly lacks them. Each
+    of the eight stations was classified rather than defaulted to the same
+    kind: gateway sheds mass (subtraction — the only part that shrinks),
+    qualifier and alerting/echo/indexer add new geometry, the evaluator
+    reshapes its pipeline tags around the metadata/content split (same tags,
+    different proportions) rather than adding a part, and the filter and
+    quota verdicts are colour/marker changes on an unchanged silhouette. A
+    terminal fork draws a static diversion chute and a fork-coloured marker
+    in the oriented frame — no slip animation, since the carrier stops where
+    it was stopped rather than travelling on.
 
 **Next, in order**
 

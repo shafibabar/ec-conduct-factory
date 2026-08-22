@@ -23,6 +23,16 @@
 
   var tour = { seen: Object.create(null), done: false };
 
+  /* What the carrier looks like once each station has fired. render.js draws
+     cumulatively — every level a station has passed keeps drawing — so this
+     is also the order the carrier's silhouette settles into. Snapshot, not
+     an animation curve: state.level pops to the new value the instant a
+     station fires, and stays there through the dwell that follows. */
+  var LEVEL = {
+    gateway: 1, qualifier: 2, filter: 3, evaluator: 4, quota: 5,
+    alerting: 6, echo: 7, indexer: 8
+  };
+
   var state = {
     running: false,
     paused: true,
@@ -81,13 +91,14 @@
     bulkBytes:        0,
     auditEventsEmitted: 0,
 
-    /* ---- package transformation state (for visual morphing) ----
-     * packageState: which stage the communication is at (RAW → INGESTED → ... → INDEXED)
-     * packageT: normalized progress through current transformation (0–1)
-     * terminalFork: which exit was taken (null, 'B1', 'C', 'B3'), drives diversion chute
-     * These drive drawCarrier() to interpolate geometry during dwell. */
-    packageState: 'RAW',
-    packageT: 0,
+    /* ---- carrier transformation state ----
+     * level: how far the carrier has been built up (see LEVEL above) — a
+     *   discrete snapshot, not a lerp target. render.js reads it the same way
+     *   it reads any other model output.
+     * terminalFork: which exit was taken (null, 'B1', 'C', 'B3') — the carrier
+     *   stops where it was stopped; render.js keys the fork's diversion chute
+     *   off this rather than off level, since a fork can land on any level. */
+    level: 0,
     terminalFork: null,
 
     /* ---- the record keeper's own books ----
@@ -160,19 +171,18 @@
   /* charge(id) — called when the carrier reaches a station.
 
      Updates Sim.state with the computed vehicle state (bytesDownloaded,
-     matchedEntities, pipelineIds, etc.) based on the current slider values.
-     This is where the "package" acquires new properties as it travels.
-
-     PACKAGE TRANSFORMATION: After charge() completes, fire() will call the
-     station's operation and then drawCarrier() will render the updated state.
-     The visual transformation should happen during the dwell (reading stop) that
-     follows fire(). */
+     matchedEntities, pipelineIds, etc.) based on the current slider values —
+     this is where the carrier acquires the properties render.js draws it
+     with. state.level is set here too, at the instant of arrival and before
+     the dwell (reading stop) that follows: the geometry pops to its new state
+     immediately, the dwell is reading time, not animation time. */
   function charge(id) {
     state.plan = planNow();
     var ph = phaseOf(state.plan, id);
     var ms = ph ? ph.workMs + ph.queueMs : 2;
     state.charged[id] = ms;
     state.latencyMs += ms;
+    if (LEVEL[id] != null) state.level = LEVEL[id];
     var v = state.plan.vehicle;
     if (id === 'gateway')   { state.bytesDownloaded = v.bytesDownloaded; state.bytesAfterMinify = v.bytesAfterMinify; }
     if (id === 'qualifier') {
@@ -228,20 +238,6 @@
       state.isAudio       = v.isAudio;
     }
 
-    /* Update packageState based on station. These transitions drive the visual
-       transformation in drawCarrier() during the dwell (reading stop) that
-       follows fire(). Each state represents a stage in the communication's
-       journey: it starts RAW with full payload, progressively sheds mass and
-       gains verdict marks, and ends INDEXED when it reaches the bulk press. */
-    if (id === 'gateway')   state.packageState = 'INGESTED';
-    if (id === 'qualifier') state.packageState = 'QUALIFIED';
-    if (id === 'filter')    state.packageState = 'EVALUATED';
-    if (id === 'evaluator') state.packageState = 'SURVEILLED';
-    if (id === 'quota')     state.packageState = 'SAMPLED';
-    if (id === 'alerting')  state.packageState = 'ALERTED';
-    if (id === 'echo')      state.packageState = 'ECHO_EVALUATED';
-    if (id === 'indexer')   state.packageState = 'INDEXED';
-
     return ph;
   }
 
@@ -254,8 +250,7 @@
     state.plan = planNow();
     state.fastForward = state.trips > 0;
     state.sampled = false;
-    state.packageState = 'RAW';
-    state.packageT = 0;
+    state.level = 0;
     state.terminalFork = null;
     state.auditPulses = [];  /* clear any active pulses on new trip */
     state.bytesDownloaded  = 0;
@@ -334,12 +329,6 @@
   /* One decision, one receipt — except where a station decides per pipeline, and
      except ec-alerting-service, which files none at all.
 
-     PACKAGE TRANSFORMATION NOTE: Each machine that fires will update Sim.state
-     with new vehicle fields via charge(). The drawCarrier() function reads these
-     state fields to decide what the package looks like. When packageState changes
-     (gateway: RAW→INGESTED, qualifier: INGESTED→QUALIFIED, etc.), the visual
-     representation transforms over the dwell time (reading stop).
-
      AUDIT RECEIPT NOTE: AUDIT_RECEIPTS counts how many audit events each station
      files. These are derivative records, not the package itself — they travel to
      ec-centralised-audit via World.RELAY (trenches + overhead tubes), not on the
@@ -392,8 +381,8 @@
     /* Called when the carrier reaches a new station on the belt.
 
        1. charge(st.id) updates Sim.state with vehicle fields computed from
-          the current slider values. This is where the package acquires new
-          properties (bytesDownloaded, matchedEntities, pipelineIds, etc.).
+          the current slider values, and sets state.level — the carrier's new
+          silhouette pops in now, not over the dwell that follows.
 
        2. Audit receipt is filed: AUDIT_RECEIPTS[st.id]() returns how many
           receipts this station emits. These are derivative records that travel
@@ -405,10 +394,9 @@
 
        4. ui.js listens for 'station' events to update the narration panel.
 
-       5. After fire() returns, the main.js tick will set up van.dwell (reading
-          stop) using World.readSeconds(st.id). During this dwell, drawCarrier()
-          renders the package with its updated state. Package transformation
-          (visual morphing) should occur over this dwell duration.
+       5. After fire() returns, the main.js tick sets up van.dwell (reading
+          stop) using World.readSeconds(st.id) — purely reading time now, the
+          carrier is already at its new state when the dwell begins.
     */
     state.station = st.id;
     state.stationT = 0;
@@ -459,11 +447,12 @@
     van.stationIdx = World.STATIONS_FLAT.length;
   }
 
-  /* TERMINAL STATES AND PACKAGE FATE
+  /* TERMINAL FORKS
 
-     Four forks leave the line early, each ending where it happens. When a fork
-     is taken, packageState becomes TERMINATED and drawCarrier() should render
-     a visual diversion path at that machine (chute, diverter, exit portal).
+     Four forks leave the line early, each ending where it happens. When a
+     fork is taken, terminalFork records which one, and render.js draws a
+     diversion chute at the station named by state.station — the carrier
+     stops there, at whatever level it had reached, rather than travelling on.
 
      The communication never travels to ec-centralised-audit — audit consumes
      *events about* it. A suppressed record simply stops where it was suppressed,
@@ -485,7 +474,6 @@
      the journey ends at the qualifier. Reachable by dragging People to zero. */
   function applyQualifierGate() {
     if (state.pipelineIds === 0) {
-      state.packageState = 'TERMINATED';
       state.terminalFork = 'B1';
       endRunHere();
     }
@@ -512,7 +500,6 @@
      at 100. */
   function applyEvaluatorGate() {
     if (state.evaluatorStalled) {
-      state.packageState = 'TERMINATED';
       state.terminalFork = 'C';
       endRunHere();
     }
@@ -522,7 +509,6 @@
      not sampled skips alerting, echo and the indexer. */
   function applyGate() {
     if (!state.sampled) {
-      state.packageState = 'TERMINATED';
       state.terminalFork = 'B3';
       endRunHere();
     }
@@ -568,20 +554,16 @@
        narration block. state.reading = true so ui.js can show a "press Space to
        continue" hint and the narration panel fills with description.
 
-       PACKAGE TRANSFORMATION TIMING: The dwell is the window for visual
-       transformation. drawCarrier() should morph the package from one state to
-       the next over this van.dwell duration, using the elapsed dwell time to
-       lerp between packageState values.
+       The carrier itself is not animating through this — state.level already
+       popped to its new value in charge(), before the dwell began — the dwell
+       is purely reading time.
 
        On subsequent trips (fastForward mode), the dwell is much shorter.
     */
     if (van.dwell > 0) {
       van.dwell -= dt * state.speed;
       state.dwellLeft = Math.max(0, van.dwell);
-      /* Update packageT: progress from 0 to 1 over the dwell duration.
-         drawCarrier() uses this to interpolate between states. */
-      state.packageT = state.dwellTotal > 0 ? (state.dwellTotal - state.dwellLeft) / state.dwellTotal : 0;
-      if (van.dwell <= 0) { state.reading = false; state.dwellTotal = 0; state.packageT = 1; }
+      if (van.dwell <= 0) { state.reading = false; state.dwellTotal = 0; }
     }
 
     /* AUDIT PULSES — animate glowing objects traveling through the relay network.
@@ -659,6 +641,7 @@
 
   global.Sim = {
     state: state,
+    LEVEL: LEVEL,
     RECON_SECONDS: RECON_SECONDS,
     van: van,
     run: run,
