@@ -115,7 +115,7 @@
   var OFFBELT = [
     { id:'audit',     x:32, y:19.2, w:6.8,d:4.0,h:6.6, color:C.audit,
       label:'audit',     sublabel:'ec-centralised-audit · the tower' },
-    { id:'reporting', x:42, y:21.5, w:5,d:3,h:3, color:C.reporting,
+    { id:'reporting', x:22, y:21.5, w:5,d:3,h:3, color:C.reporting,
       label:'reporting', sublabel:'ec-reporting' }
   ];
 
@@ -510,7 +510,8 @@
     tube: [
       { to:'gateway',   z:4.5, pts:[[31.0,17.0],[31.0,6.4],[18.9,6.4]],
         label:'GET /watermark' },
-      { to:'reporting', z:4.5, pts:[[35.60,20.0],[40.4,20.0]],
+      /* Audit ↔ Reporting pair: westbound connection from audit to reporting */
+      { to:'reporting', z:4.5, pts:[[28.0,20.0],[22.0,21.5]],
         label:'windowReconciliation' },
       { to:'quota',     z:4.5, pts:[[35.60,17.0],[50.0,17.0]],
         label:'windowReconciliation' }

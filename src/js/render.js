@@ -2719,45 +2719,68 @@
   /* Counters land in a collection named for the window they belong to, so one
      window's numbers can never be mixed with another's. */
   function drawReporting(o, active, s) {
-    /* One machine is alive at a time: mv gates every moving part, so an
-       idle machine shows nothing but its standby lamp. */
+    /* Reporting is an archive and report-generation service. It processes audit
+       events and turns them into per-window, per-pipeline execution reports.
+       Not on the belt (OFFBELT), so it has its own tempo driven by the ShedLock
+       cron that runs every 15 minutes during reconciliation. */
     var mv = busy(o.id), t = mv ? clk : 0;
     var k = shell(o);
     var i;
 
-    /* four window bins; the newest is the live one */
+    /* The four window bins: MongoDB collections named for each window.
+       The newest (live) window is at index 3 and shows active processing. */
     var live = 3;
+    var binWidth = (o.w - 0.7) / 4;
     for (i = 0; i < 4; i++) {
-      var bx2 = k.bx + 0.35 + i * ((o.w - 0.7) / 4);
-      var bw  = (o.w - 0.7) / 4 - 0.16;
+      var bx2 = k.bx + 0.35 + i * binWidth;
+      var bw  = binWidth - 0.16;
       var isLive = (i === live);
+
+      /* Bin fill level: live window pulses with activity, older windows static */
       var fill = isLive ? (0.25 + 0.6 * Math.abs(Math.sin(t * 0.55)))
                         : (0.55 + i * 0.12);
+
+      /* Bin container: dark cast iron exterior */
       Iso.box(ctx, { x: bx2, y: k.by + 0.45, z: k.top, w: bw, d: 0.85,
                      h: 1.25, color: '#141108', edge: 'rgba(150,130,90,0.28)' });
+
+      /* Report data inside: amber glow for live window, brown for archived */
       Iso.box(ctx, { x: bx2+0.05, y: k.by + 0.50, z: k.top, w: bw-0.10, d: 0.75,
                      h: 1.15 * fill,
                      color: isLive ? '#c0a070' : '#6a5a44', edge: false });
-      /* window token plate under each bin */
+
+      /* Window token identification plate */
       ctx.fillStyle = isLive ? 'rgba(224,200,150,0.85)' : 'rgba(130,115,88,0.55)';
       Iso.poly(ctx, [P(bx2, k.sf, 0.50), P(bx2+bw, k.sf, 0.50),
                      P(bx2+bw, k.sf, 0.62), P(bx2, k.sf, 0.62)]);
+
+      /* Add mechanical detail: report stacks/spools under live bin */
+      if (isLive && mv) {
+        var stackBase = k.by - 0.5;
+        ctx.fillStyle = 'rgba(200,180,120,' + (0.3 + 0.3*Math.sin(t*2.5 + i)).toFixed(2) + ')';
+        Iso.disc(ctx, bx2+bw*0.5, stackBase, k.top-0.2, 0.12);
+      }
     }
+
+    /* Window token label on the south face */
     faceText(k.bx+0.30, k.sf, k.top-0.55, ['_windowToken'],
              { size: 6.5, color: 'rgba(200,180,140,0.60)' });
 
-    /* the 15-minute ShedLock cron, sweeping */
+    /* The 15-minute reconciliation cron, sweeping across the deck */
     var sxc = o.x + 1.85, syc = o.y - 0.35;
     Iso.cylinder(ctx, { x: sxc, y: syc, z: k.top, r: 0.17, h: 0.36, color: '#2e2a20' });
     var sweep = (t * 0.5) % 1;
     ctx.fillStyle = 'rgba(200,180,120,' + (0.35 + 0.5 * Math.abs(Math.sin(sweep*Math.PI))).toFixed(2) + ')';
     Iso.disc(ctx, sxc, syc, k.top + 0.40, 0.20);
 
+    /* Status lamp: green when reconciliation is running, red when idle */
     ctx.fillStyle = mv ? 'rgba(90,210,80,' + (0.72 + 0.28*Math.sin(t*7)).toFixed(2) + ')'
-                           : 'rgba(200,55,45,0.68)';
+                       : 'rgba(200,55,45,0.68)';
     Iso.disc(ctx, k.bx+o.w-0.48, k.by+0.38, k.top+0.04, 0.13);
+
+    /* Activity puffs when the reconciliation cron is running */
     if (mv) puffs(o.x, k.by+o.d*0.28, k.top+0.6, 3, (o.x*7)|0,
-                      { color: '#98886a', alpha: 0.15, rise: 1.1, r1: 0.34, rate: 0.42 });
+                  { color: '#98886a', alpha: 0.15, rise: 1.1, r1: 0.34, rate: 0.42 });
   }
 
   /* ==== floor props ========================================================
