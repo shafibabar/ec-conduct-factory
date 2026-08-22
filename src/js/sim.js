@@ -114,7 +114,10 @@
 
     /* ---- trip counter ---- */
     trips:     0,
-    maxTrips:  3
+    maxTrips:  3,
+
+    /* ---- audit pulses (emitted when receipts fire, rendered as glowing objects) ---- */
+    auditPulses: []  /* array of {source, startTime, speed, pathIndex} */
   };
 
   var van = {
@@ -254,6 +257,7 @@
     state.packageState = 'RAW';
     state.packageT = 0;
     state.terminalFork = null;
+    state.auditPulses = [];  /* clear any active pulses on new trip */
     state.bytesDownloaded  = 0;
     state.bytesAfterMinify = 0;
     /* Seeded from the plan rather than zeroed. These three are pure functions
@@ -417,7 +421,21 @@
        the belt became a U. Both names now feed the same number — the tower
        reads auditEvents, the narration interpolates auditEventsEmitted. */
     var rec = AUDIT_RECEIPTS[st.id];
-    if (rec) state.auditEvents += rec(state);
+    if (rec) {
+      var receiptCount = rec(state);
+      state.auditEvents += receiptCount;
+      /* Emit audit pulses: one pulse per receipt, traveling from this station
+         to the audit tower through World.RELAY. Each pulse is a glowing object
+         that animates along the trench/tube paths. */
+      for (var i = 0; i < receiptCount; i++) {
+        state.auditPulses.push({
+          source: st.id,
+          startTime: state.stationT,
+          speed: 15 + Math.random() * 5,  /* grid units per second */
+          offset: i * 0.15  /* stagger multiple pulses from same station */
+        });
+      }
+    }
     state.auditEventsEmitted = state.auditEvents;
     state.pipesTerminal = terminalAfter(st.id);
     if (st.id === 'gateway') state.auditIngested += 1;
@@ -564,8 +582,21 @@
          drawCarrier() uses this to interpolate between states. */
       state.packageT = state.dwellTotal > 0 ? (state.dwellTotal - state.dwellLeft) / state.dwellTotal : 0;
       if (van.dwell <= 0) { state.reading = false; state.dwellTotal = 0; state.packageT = 1; }
-      return;
     }
+
+    /* AUDIT PULSES — animate glowing objects traveling through the relay network.
+       Each pulse travels from its source station toward the audit tower. When a
+       pulse reaches the tower, it's removed from the array. */
+    for (var pi = state.auditPulses.length - 1; pi >= 0; pi--) {
+      var pulse = state.auditPulses[pi];
+      pulse.time = (state.stationT - pulse.startTime - pulse.offset) * pulse.speed;
+      /* Remove pulses that have traveled far enough (reached the tower, ~50 grid units) */
+      if (pulse.time > 50) {
+        state.auditPulses.splice(pi, 1);
+      }
+    }
+
+    if (van.dwell > 0) return;
 
     /* Travel along the belt toward the next station. */
     van.dist += BASE_SPEED * sdt;

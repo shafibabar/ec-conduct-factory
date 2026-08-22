@@ -3644,6 +3644,56 @@
     ctx.restore();
   }
 
+  function drawAuditPulses() {
+    /* Render glowing receipt objects traveling through World.RELAY network.
+       Each pulse starts from its source machine and travels toward the audit tower.
+       Pulses are simple glowing discs that fade as they travel. */
+    var s = Sim.state;
+    if (!s.auditPulses || s.auditPulses.length === 0) return;
+
+    s.auditPulses.forEach(function (pulse) {
+      /* Calculate position along the relay path. For simplicity, we'll render
+         the pulse at a fixed height and use an approximate position based on
+         its travel distance. A more sophisticated implementation would follow
+         the actual trench/tube paths from World.RELAY. */
+
+      /* Map source station to an approximate trench starting position */
+      var startX, startY;
+      if (pulse.source === 'gateway')   { startX = 17.8;  startY = 3.60; }
+      else if (pulse.source === 'qualifier') { startX = 27.2;  startY = 4.60; }
+      else if (pulse.source === 'filter')    { startX = 37.6;  startY = 5.10; }
+      else if (pulse.source === 'evaluator') { startX = 47.3;  startY = 5.10; }
+      else if (pulse.source === 'quota')     { startX = 57.1;  startY = 18.85; }
+      else if (pulse.source === 'echo')      { startX = 44.0;  startY = 38.4; }
+      else if (pulse.source === 'indexer')   { startX = 34.0;  startY = 38.4; }
+      else return;  /* no relay from this station */
+
+      /* Approximate destination (audit tower center) */
+      var endX = 32.0, endY = 15.0;
+
+      /* Interpolate along path based on travel distance */
+      var totalDist = Math.hypot(endX - startX, endY - startY);
+      var t = Math.min(1, pulse.time / totalDist);
+      var pulseX = startX + (endX - startX) * t;
+      var pulseY = startY + (endY - startY) * t;
+
+      /* Render the pulse as a glowing disc */
+      var p = Iso.project(pulseX, pulseY, 0.25);
+      var alpha = Math.max(0, 1 - t * 1.5);  /* fade out as it approaches tower */
+      ctx.fillStyle = 'rgba(200, 255, 100, ' + (alpha * 0.8).toFixed(2) + ')';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 5 + Math.sin(clk * 8) * 1.5, 0, 6.2832);
+      ctx.fill();
+
+      /* Glow ring */
+      ctx.strokeStyle = 'rgba(200, 255, 100, ' + (alpha * 0.4).toFixed(2) + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 8 + Math.sin(clk * 6) * 2, 0, 6.2832);
+      ctx.stroke();
+    });
+  }
+
   /* ---- main draw entry point ---------------------------------------------- */
 
   function draw(canvas, camIn, clock, activeId, hoverDistId) {
@@ -3673,6 +3723,7 @@
     drawTrenches();
     drawBelt();
     drawDecals();          /* flat floor paint — must precede every solid */
+    drawAuditPulses();     /* glowing receipt objects traveling through relay */
 
     /* ---- collect objects for depth sort ---- */
     var objects = [];
