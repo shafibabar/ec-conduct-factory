@@ -3320,6 +3320,36 @@
        by that height — otherwise the skid sinks into the deck it rides on. */
     var BZ = (Factory.BELT_H != null) ? Factory.BELT_H : 0;
 
+    /* ---- PULSATING HALO RING around the carrier ----
+       A glowing ring that animates with the carrier's position, providing
+       visual depth and drawing attention to the moving package. */
+    var haloPhase = Math.sin(clk * 3.2) * 0.25;  /* pulse ±0.25 amplitude */
+    var baseHaloR = 1.35;
+    var haloR = baseHaloR + haloPhase;
+    var haloPos = Iso.project(vanPos.x, vanPos.y, BZ + 0.15);
+
+    /* Outer halo glow (very faint) */
+    ctx.strokeStyle = 'rgba(200, 180, 100, 0.12)';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(haloPos.x, haloPos.y, haloR * 1.2 * TW * 1.414, 0, 6.2832);
+    ctx.stroke();
+
+    /* Mid-tone halo (pulsing brightness) */
+    ctx.strokeStyle = 'rgba(200, 180, 100, ' + (0.20 + 0.15 * Math.sin(clk * 3.2)).toFixed(2) + ')';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(haloPos.x, haloPos.y, haloR * TW * 1.414, 0, 6.2832);
+    ctx.stroke();
+
+    /* Inner accent ring (sharper) */
+    ctx.strokeStyle = 'rgba(200, 180, 100, ' + (0.35 + 0.2 * Math.sin(clk * 3.2 + 1)).toFixed(2) + ')';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(haloPos.x, haloPos.y, haloR * 0.8 * TW * 1.414, 0, 6.2832);
+    ctx.stroke();
+
     /* PACKAGE TRANSFORMATION STATE & TIMING
        packageState: which stage we're in (RAW, INGESTED, QUALIFIED, etc.)
        packageT: progress 0→1 through the current transformation
