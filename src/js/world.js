@@ -1,11 +1,18 @@
-/* world.js: EC Factory — conveyor belt, 10 surveillance stations, 11 side services.
+/* world.js: EC Factory — conveyor belt, 8 belt stations, 2 off-belt, 6 side services.
  *
  * The belt carries a single communication from the archive input through the
  * surveillance data path (Flows A and B). At the quota-manager sorting gate the
  * carrier either continues to alerting (sampled) or ends its journey there
  * (not sampled, skipping alerting/echo/indexer).
  *
- * All 21 repositories appear: 10 on the belt, 11 as side structures.
+ * 16 repositories appear: 8 on the belt, 2 off it (ec-centralised-audit,
+ * ec-reporting), 6 as side structures. Five more exist in the real platform —
+ * conduct-reports, ec-conduct-audit-service, ec-compliance-report (the
+ * reporting-corner trio, a redundant read/rollup path off the same audit
+ * trail the tower already shows), conduct-actioning (a library, not a
+ * deployable, in-process at ea-ui-portal), and ec-conduct-hithighlight-service
+ * (a read-path detail too fine-grained to earn its own floor structure) — and
+ * are documented in knowledge/system-explainer-input.md but not drawn.
  *
  * Grid space: x grows right, y grows down (isometric). GW=78, GH=54.
  */
@@ -61,7 +68,6 @@
     review:    '#506890',
     portal:    '#4a6878',
     actioning: '#704860',
-    reports:   '#607060',
     side:      '#3a4455'   // generic side
   };
 
@@ -122,20 +128,15 @@
   var STATION_IDX_BY_ID = {};
   STATIONS_FLAT.forEach(function (s, i) { STATION_IDX_BY_ID[s.id] = i; });
 
-  /* ---- side structures (11 off-belt repos) ------------------------------- */
+  /* ---- side structures (6 off-belt repos) -------------------------------- */
 
   var SIDE_STRUCTS = [
     { id:'config',          x:2,  y:16, w:6,d:5,h:4, color:C.config,    label:'ec-config-curator',              sublabel:'control room · Flow E' },
-    { id:'hithighlight',    x:2,  y:28, w:5,d:4,h:2, color:C.review,    label:'ec-conduct-hithighlight-service',sublabel:'hit-highlight offsets' },
     { id:'manualruns',      x:2,  y:38, w:6,d:5,h:3, color:C.manualruns,label:'ec-manual-runs-service',         sublabel:'re-processing · Flow F' },
     { id:'reviewservice',   x:66, y:6,  w:5,d:4,h:3, color:C.review,    label:'ec-review-service',              sublabel:'entitlements & pipelines' },
     { id:'portal',          x:66, y:16, w:7,d:5,h:4, color:C.portal,    label:'ea-ui-portal',                   sublabel:'reviewer portal · Flow G' },
     { id:'externalapi',     x:66, y:26, w:6,d:4,h:3, color:C.review,    label:'ep-conduct-external-api',        sublabel:'external API gateway' },
-    { id:'actioningservice',x:66, y:36, w:7,d:5,h:3, color:C.actioning, label:'conduct-actioning-service',      sublabel:'disposition executor' },
-    { id:'actioninglib',    x:66, y:44, w:5,d:3,h:2, color:C.actioning, label:'conduct-actioning',              sublabel:'lib · in-process at portal' },
-    { id:'conductaudit',    x:50, y:52, w:5,d:4,h:2, color:C.reports,   label:'ec-conduct-audit-service',       sublabel:'audit store manager' },
-    { id:'reports',         x:31, y:42, w:6,d:4,h:3, color:C.reports,   label:'conduct-reports',                sublabel:'administrative reports' },
-    { id:'compliance',      x:41, y:42, w:6,d:4,h:3, color:C.reports,   label:'ec-compliance-report',           sublabel:'regulator CSV · Flow H' }
+    { id:'actioningservice',x:66, y:36, w:7,d:5,h:3, color:C.actioning, label:'conduct-actioning-service',      sublabel:'disposition executor' }
   ];
 
   /* Cognition island — small external compound north of the evaluator. */
@@ -271,14 +272,6 @@
         'Cron: 0 */15 * * * * (evaluated every 15 minutes, fires once at each tenant\'s daily boundary).'
     },
     {
-      id:'hithighlight', name:'ec-conduct-hithighlight-service', x:5, y:30, r:3.5, color:C.review,
-      tag:'hit-highlight offsets · reviewer rendering',
-      short:'ec-conduct-hithighlight-service provides the byte offsets of matched phrases within the communication body, so the reviewer portal can render them as highlighted text.',
-      body:'When a reviewer opens an alert in ea-ui-portal, the portal fetches the original snapshot and then requests highlight offsets from this service. ' +
-        'The maximum number of highlight expressions per request is 20, measured from source. ' +
-        'This service sits on the read path only: it never writes to surveillance stores and does not affect the audit trail.'
-    },
-    {
       id:'manualruns', name:'ec-manual-runs-service', x:5, y:41, r:4.5, color:C.manualruns,
       tag:'re-processing · Athena query · chunk strategy · Flow F',
       short:'ec-manual-runs-service re-processes historical communications through the surveillance pipeline on demand, using Athena to query the archive and streaming CSV results in parallel byte-range chunks.',
@@ -324,42 +317,6 @@
         'The two-store write is not transactional: a failure between the Mongo update and the ES update leaves an item dispositioned in the audit trail but still open in search results, where it will age into higher age buckets in the monthly compliance report. ' +
         'Non-retryable failures write metadata_nonretryable_event — there is no retry topic or DLT on this path. ' +
         'KEDA: lag autoscaling on the large tier only (lagThreshold 100).'
-    },
-    {
-      id:'actioninglib', name:'conduct-actioning (library)', x:68, y:45, r:3.5, color:C.actioning,
-      tag:'in-process at ea-ui-portal · tier routing · MetadataMessageInfo',
-      short:'conduct-actioning is a Kotlin library linked into the portal process: it decides which tier topic an action goes to, builds the MetadataMessageInfo payload, and applies hold/legal-hold checks before publishing.',
-      body:'Topic names are resolved at runtime from deployment properties (actioning.small.topic etc.), not hardcoded. ' +
-        'A misconfigured or missing property publishes to a topic nobody consumes — the action is silently lost, with no local listener or DLT to catch it. ' +
-        'This is the most fragile configuration coupling in the platform: the wrong label on the chute sends the item nowhere. ' +
-        'The tier thresholds (small ≤20, medium 21–50, large >50 documents) are measured from env-variables.yaml.'
-    },
-    {
-      id:'conductaudit', name:'ec-conduct-audit-service', x:51, y:54, r:3.5, color:C.reports,
-      tag:'audit store manager · cross-service audit reads',
-      short:'ec-conduct-audit-service manages audit records across the review and actioning planes, providing a unified read path for audit data that multiple services write independently.',
-      body:'It sits on the read path for the review interface, aggregating audit data from ec-centralised-audit and the actioning plane. ' +
-        'It does not participate in the live surveillance data path.'
-    },
-    {
-      id:'reports', name:'conduct-reports', x:59, y:54, r:4.0, color:C.reports,
-      tag:'scheduled administrative reports · ISS identity resolution',
-      short:'conduct-reports produces scheduled and on-demand administrative reports — policy lists, entitlement reports, reconciliation numbers — by reading collections other repositories own.',
-      body:'It is a Guice JAR driven by an external scheduler, not a service. It calls no EC service. ' +
-        'Reads from MongoDB: supervision_queues, app_audit_new, supervision_queries, identities_v1, conduct_recon_report. ' +
-        'Reads from Elasticsearch: supervision metric indices. ' +
-        'The queue-level entitlement filter applied before any read is a security boundary — bypassing it would expose other queues\' data. ' +
-        'Identifiers are resolved to human names through two ISS (identity service) calls. ' +
-        'Scroll keep-alive 60 s; if the cluster is slow the scroll expires and the report is silently truncated.'
-    },
-    {
-      id:'compliance', name:'ec-compliance-report', x:67, y:54, r:4.0, color:C.reports,
-      tag:'monthly regulator CSV · SFTP/SMTP · Flow H',
-      short:'ec-compliance-report produces the monthly regulator-facing CSV: supervised-item counts by origin and state, plus a histogram of how long open items have been open — and delivers it over SFTP or SMTP.',
-      body:'It reads the same Elasticsearch review index that ec-indexer wrote and conduct-actioning-service mutated. ' +
-        'This is the edge that closes the loop: an indexing failure removes rows from the report, and a disposition that updated MongoDB but not Elasticsearch leaves an item that reviewers see as closed and the report counts as open — ageing into higher buckets (1–15, 16–30, 31–60, 61–90, 91+ days) forever, visible here and nowhere else. ' +
-        'Delivery is retried 10 times at 60-second intervals; a missed monthly send is a compliance event. ' +
-        'Scroll: 10 slices, 5-minute keep-alive, 1000-document batches.'
     }
   ];
 

@@ -53,8 +53,11 @@ side flows the off-belt structures illustrate).
 ## The subject, as staged
 
 One communication rides a conveyor belt through the surveillance data path.
-All 21 repositories appear: **8 as belt stations**, **2 off the belt** inside
-the loop it makes, **11 as side structures**.
+16 repositories appear: **8 as belt stations**, **2 off the belt** inside
+the loop it makes, **6 as side structures**. Five more repositories exist in
+the real platform and are documented in `knowledge/system-explainer-input.md`
+but not drawn — see "Side structures removed" in Progress below for which and
+why.
 
 The belt is a **U** — a top run west to east, a turn south, a middle run back
 east to west. Order: `gateway → qualifier → filter → evaluator → quota →
@@ -84,7 +87,7 @@ js/dock.js          the dock as a reusable component: builds transport,
                     drawer from a spec. Knows nothing about EC
 js/iso.js           isometric projection + primitives — ENGINE, keep unchanged
 js/model.js         the lesson: chunking, queue depth, KEDA scaling, latency
-js/world.js         belt route, 10 stations, 11 side structures, props, districts
+js/world.js         belt route, 10 stations, 6 side structures, props, districts
 js/factory.js       floor palette + ground/hazard/slab drawing (project-specific)
 js/kit.js           the machine kit: materials, cam timing, primitives,
                     instruments, sub-assemblies. The vocabulary every station
@@ -362,6 +365,24 @@ rebuilt machine outgrows its box, and set the label anchor explicitly in
     terminal fork draws a static diversion chute and a fork-coloured marker
     in the oriented frame — no slip animation, since the carrier stops where
     it was stopped rather than travelling on.
+- **Side structures removed: 11 → 6.** Five repositories came off the floor
+  because their depiction added floor complexity without adding to the
+  lesson: `conduct-actioning` (the library — `conduct-actioning-service`,
+  the deployable that uses it, stays), `ec-conduct-audit-service`,
+  `conduct-reports` and `ec-compliance-report` (a trio that shared one
+  colour, `C.reports`, and all three read the same audit trail the tower
+  already shows — a redundant read path rather than a distinct mechanism),
+  and `ec-conduct-hithighlight-service` (a read-path detail whose real
+  behaviour — byte-offset highlighting — would need more visual complexity
+  than the floor can carry to depict honestly). All five are still
+  documented in `knowledge/system-explainer-input.md`; they are simply not
+  drawn. `SIDE_STRUCTS` and the matching `STRUCT` (narration) entries came
+  out of `world.js` together, along with the now-dead `C.reports` colour;
+  `README.md`, `CLAUDE.md` and the About modal's repository counts and
+  structure lists were updated to match. While in `README.md`'s `Layout`
+  section, fixed a second, unrelated staleness found in the same pass: it
+  still described the pre-U-turn floor (one fork, audit on the belt) and was
+  missing `kit.js`/`dock.js`/`dock.css` from the file list entirely.
 
 **Next, in order**
 
