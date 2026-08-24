@@ -3138,62 +3138,115 @@
 
   function linkColor(lk) { return lk.type === 'control' ? LINK_COLOR_CONTROL : LINK_COLOR; }
 
-  /* portal and actioning-service sit at opposite ends of the column, with
-     review-service and external-api between them — the one edge in the
-     4-cycle a straight stack can't make adjacent to both its endpoints (see
-     the placement comment on the cluster's SIDE_STRUCTS entries). Routed
-     through the clear gap east of the column, before ec-reporting's
-     footprint starts, rather than straight through the two casings between
-     them. */
-  var DOGLEG_X = 19, DOGLEG_Y = 30;
+  /* The review/actioning services are arranged as a 2 x 2 graph, so every
+ * real relationship is now a direct short surface run:
+ *
+ *     portal ───────── reviewservice
+ *       │                   │
+ *       │                   │
+ *     actioning ─────── externalapi
+ *
+ * manualruns/config form the control row underneath:
+ *
+ *     manualruns ───── config
+ *
+ * Their two upward links to portal/reviewservice are also direct.
+ *
+ * The two relationships that do NOT exist are the diagonals of the 2 x 2
+ * review/actioning block:
+ *
+ *     portal -X- externalapi
+ *     reviewservice -X- actioningservice
+ *
+ * They are marked explicitly rather than being rendered as missing data.
+ */
+function drawClusterLinks() {
+  World.CLUSTER_LINKS.forEach(function (lk) {
+    var a = World.structCentre(lk.from);
+    var b = World.structCentre(lk.to);
+    if (!a || !b) return;
 
-  function drawClusterLinks() {
-    World.CLUSTER_LINKS.forEach(function (lk) {
-      var a = World.structCentre(lk.from), b = World.structCentre(lk.to);
-      if (!a || !b) return;
-      var isDogleg = (lk.from === 'portal' && lk.to === 'actioningservice') ||
-                     (lk.from === 'actioningservice' && lk.to === 'portal');
-      var col = linkColor(lk);
-      if (isDogleg) {
-        pipe(a.x, a.y, DOGLEG_X, DOGLEG_Y, 0.11, 0.10, col);
-        pipe(DOGLEG_X, DOGLEG_Y, b.x, b.y, 0.11, 0.10, col);
-        floorText(DOGLEG_X + 0.15, DOGLEG_Y, 0.03, [lk.mech],
-                  { size: 5.6, color: 'rgba(226,214,190,0.55)', dir: 'y' });
-        return;
-      }
-      pipe(a.x, a.y, b.x, b.y, 0.11, 0.10, col);
-      var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-      var dx = b.x - a.x, dy = b.y - a.y;
-      floorText(mx, my, 0.03, [lk.mech], {
-        size: 5.6, color: 'rgba(226,214,190,0.55)',
-        dir: Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y'
-      });
-    });
+    var col = linkColor(lk);
 
-    /* the two edges the real graph never draws — marked, not just omitted,
-       so an absence reads as confirmed rather than as an oversight. The
-       direct line between either pair now runs through the two structures
-       standing between them in the column, so both markers sit in the same
-       clear east gap the dogleg above uses, at the y level partway between
-       each pair's own two members, rather than literally on the (now
-       occupied) line between them. */
-    var rv = World.structCentre('reviewservice'), ac = World.structCentre('actioningservice');
-    var po = World.structCentre('portal'), ex = World.structCentre('externalapi');
-    [[rv, ac, (rv.y + ac.y) / 2], [po, ex, (po.y + ex.y) / 2]].forEach(function (pr) {
-      if (!pr[0] || !pr[1]) return;
-      var mx = DOGLEG_X, my = pr[2];
-      var mp = P(mx, my, 0.03);
-      ctx.fillStyle = 'rgba(18,18,20,0.7)';
-      ctx.beginPath(); ctx.arc(mp.x, mp.y, 7, 0, 6.2832); ctx.fill();
-      ctx.strokeStyle = 'rgba(160,150,140,0.55)';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath(); ctx.arc(mp.x, mp.y, 7, 0, 6.2832); ctx.stroke();
-      ctx.fillStyle = 'rgba(210,200,190,0.75)';
-      ctx.font = '9px ui-monospace, Menlo, Consolas, monospace';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('✕', mp.x, mp.y + 0.5);
+    pipe(a.x, a.y, b.x, b.y, 0.11, 0.10, col);
+
+    var mx = (a.x + b.x) / 2;
+    var my = (a.y + b.y) / 2;
+
+    var dx = b.x - a.x;
+    var dy = b.y - a.y;
+
+    floorText(mx, my, 0.03, [lk.mech], {
+      size: 5.6,
+      color: 'rgba(226,214,190,0.55)',
+      dir: Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y'
     });
-  }
+  });
+
+  /* ------------------------------------------------------------------
+   * Confirmed absent relationships.
+   *
+   * The markers are deliberately offset slightly from the exact
+   * geometric midpoint because the two diagonals are close together
+   * in the compact 2 x 2 layout. They remain inside the open gap
+   * between the two rows.
+   * ---------------------------------------------------------------- */
+
+  var rv = World.structCentre('reviewservice');
+  var ac = World.structCentre('actioningservice');
+  var po = World.structCentre('portal');
+  var ex = World.structCentre('externalapi');
+
+  var absent = [
+    {
+      a: rv,
+      b: ac,
+      offset: 1.0
+    },
+    {
+      a: po,
+      b: ex,
+      offset: -1.0
+    }
+  ];
+
+  absent.forEach(function (pair) {
+    if (!pair.a || !pair.b) return;
+
+    var dx = pair.b.x - pair.a.x;
+    var dy = pair.b.y - pair.a.y;
+    var len = Math.hypot(dx, dy) || 1;
+
+    var mx = (pair.a.x + pair.b.x) / 2;
+    var my = (pair.a.y + pair.b.y) / 2;
+
+    /* perpendicular unit vector */
+    var px = -dy / len;
+    var py =  dx / len;
+
+    mx += px * pair.offset;
+    my += py * pair.offset;
+
+    var mp = P(mx, my, 0.03);
+
+    ctx.fillStyle = 'rgba(18,18,20,0.7)';
+    ctx.beginPath();
+    ctx.arc(mp.x, mp.y, 7, 0, 6.2832);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(160,150,140,0.55)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(mp.x, mp.y, 7, 0, 6.2832);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(210,200,190,0.75)';
+    ctx.font = '9px ui-monospace, Menlo, Consolas, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✕', mp.x, mp.y + 0.5);
+  });
+}
 
   var PROP_KIND = {
     conduit: drawConduit, spur: drawSpur, post: drawPost, lamp: drawLamp,

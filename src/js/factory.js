@@ -196,9 +196,9 @@
      EC's — they have to run down this plant's aisles, and none of them may
      cross the belt. */
   var AISLES = [
-    [4,  18.5, 60, 18.5],
-    [18, 37.5, 50, 37.5]
-  ];
+  [4,  18.5, 60, 18.5],
+  [21, 46.5, 50, 46.5]
+];
 
   function drawWalkways(ctx, Iso) {
     for (var i = 0; i < AISLES.length; i++) {
