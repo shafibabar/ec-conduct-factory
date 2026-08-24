@@ -83,7 +83,16 @@
     echo:      { body: '#785794', plinth: '#2f2438', cap: '#9674b4' },
     indexer:   { body: '#947557', plinth: '#382e24', cap: '#b49474' },
     audit:     { body: '#946657', plinth: '#382924', cap: '#b48474' },
-    reporting: { body: '#947b57', plinth: '#383024', cap: '#b49a74' }
+    reporting: { body: '#947b57', plinth: '#383024', cap: '#b49a74' },
+    /* the review/actioning cluster plus config-curator and manual-runs —
+       side structures built to the same three-value discipline as the
+       belt machines instead of the shared generic shell they used before */
+    config:       { body: '#4a8848', plinth: '#1e3320', cap: '#6bab68' },
+    manualruns:   { body: '#5870a0', plinth: '#242e42', cap: '#7a94c0' },
+    review:       { body: '#506890', plinth: '#20283a', cap: '#7088b4' },
+    portal:       { body: '#4a6878', plinth: '#1e2c32', cap: '#6a8ea0' },
+    externalapi:  { body: '#9a7a3a', plinth: '#3a2e16', cap: '#c0a058' },
+    actioning:    { body: '#704860', plinth: '#2c1c26', cap: '#966284' }
   };
   var LIVERY_DEFAULT = { body: '#6b7080', plinth: '#282b33', cap: '#8d94a4' };
 

@@ -22,9 +22,10 @@
   var Iso = global.Iso;
   var makeRoute = Iso.makeRoute;
 
-  /* GH came down from 54 when the belt lost its third run: the bottom of the
-     slab was left with nothing on it. The reporting-corner side structures
-     moved up into what remained, which is where they belong anyway. */
+  /* GH grew to 60 then 66 for a south placement of the review/actioning
+     cluster that no longer exists — it moved to the west-central corridor
+     the config/manual-runs swap opened up, entirely clear of the belt
+     without needing extra depth, so GH is back to its post-U-turn 48. */
   var GW = 78, GH = 48;
 
   /* ---- belt route --------------------------------------------------------
@@ -67,6 +68,7 @@
     manualruns:'#5870a0',
     review:    '#506890',
     portal:    '#4a6878',
+    externalapi: '#9a7a3a', // was C.review — same colour as a different building read as one machine twice
     actioning: '#704860',
     side:      '#3a4455'   // generic side
   };
@@ -131,12 +133,84 @@
   /* ---- side structures (6 off-belt repos) -------------------------------- */
 
   var SIDE_STRUCTS = [
-    { id:'config',          x:2,  y:16, w:6,d:5,h:4, color:C.config,    label:'ec-config-curator',              sublabel:'control room · Flow E' },
-    { id:'manualruns',      x:2,  y:38, w:6,d:5,h:3, color:C.manualruns,label:'ec-manual-runs-service',         sublabel:'re-processing · Flow F' },
-    { id:'reviewservice',   x:66, y:6,  w:5,d:4,h:3, color:C.review,    label:'ec-review-service',              sublabel:'entitlements & pipelines' },
-    { id:'portal',          x:66, y:16, w:7,d:5,h:4, color:C.portal,    label:'ea-ui-portal',                   sublabel:'reviewer portal · Flow G' },
-    { id:'externalapi',     x:66, y:26, w:6,d:4,h:3, color:C.review,    label:'ep-conduct-external-api',        sublabel:'external API gateway' },
-    { id:'actioningservice',x:66, y:36, w:7,d:5,h:3, color:C.actioning, label:'conduct-actioning-service',      sublabel:'disposition executor' }
+    /* config-curator and manual-runs sized up toward belt scale (from a flat
+       w6,d5) but capped at w7: this corridor carries both this pair AND the
+       four-machine column below, and there isn't room for every one of the
+       six at full belt width (8.5-10) without either column encroaching on
+       the other or the whole cluster encroaching on ec-reporting at x19.5.
+       config-curator sits directly below manual-runs in the same west
+       sub-column: short edges to both manual-runs (bootstrap/config) and
+       review-service (Kafka+REST), and a position that reads as a control
+       facility standing apart from the review/actioning cluster rather
+       than another member of it. Its wider fan-out to the nine data-plane
+       services it primes over REST (belt stations plus the audit tower)
+       is deliberately NOT drawn as floor conduits — routing nine literal
+       pipes across the belt and around the audit tower would mean cutting
+       through machinery to draw a "control facility", which is the
+       opposite of the point; that fan-out stays symbolic, carried by the
+       nine-lamp bank already on its own casing. manual-runs has no
+       relationship to the review/actioning cluster below it at all — its
+       real rejoin points are gateway and filter, both stencilled on its
+       own casing — but it does sit beside portal, close enough for a
+       short direct edge. */
+    { id:'manualruns',      x:2,  y:16, w:7,d:5.5,h:3.2, color:C.manualruns,label:'ec-manual-runs-service',         sublabel:'re-processing · Flow F' },
+    { id:'config',          x:2,  y:23, w:7,d:5.5,h:3.3, color:C.config,    label:'ec-config-curator',              sublabel:'control room · Flow E' },
+    /* The review/actioning cluster: a single column in the west-central
+       corridor the config/manual-runs swap opened up, now at the same
+       w8-9/d5-6.5/h3-3.5 scale as the belt machines instead of the flatter
+       w5-7/d4-5/h3-4 the first pass used — the first pass also read as
+       oddly boxy for its footprint, city-era proportions rather than
+       sprawling floor machinery. The 2x2 square an earlier pass tried
+       needed ~12 units side by side and didn't fit this ~11.5-wide
+       corridor before ec-reporting's footprint at x19.5 (missed then:
+       only belt stations and SIDE_STRUCTS were checked, not the OFFBELT
+       pair). A single column fits north-south instead, clear of
+       manual-runs/config at x2-9, ec-reporting at x19.5+ and the audit
+       tower at x28.6+, regardless of y. Ordered portal, review-service,
+       external-api, actioning-service top to bottom — of the four real
+       edges in the review-portal-actioning-external api-review 4-cycle, a
+       straight stack can only ever make three of them adjacent; this
+       order is chosen so those three (review-portal, review-external-api,
+       external-api-actioning) are exactly the adjacent ones, both absent
+       edges (review<->actioning, portal<->external-api) fall on
+       skip-one pairs where no line is drawn at all, and the one real edge
+       that can't be adjacent (portal<->actioning) is the single skip-two
+       run drawClusterLinks() routes around the two structures between
+       them via DOGLEG_X/DOGLEG_Y. See CLAUDE.md Progress for the redesign
+       this sets up. */
+    { id:'portal',          x:9.5, y:16, w:9,d:5.5,h:3.5, color:C.portal,      label:'ea-ui-portal',                   sublabel:'reviewer portal · Flow G' },
+    { id:'reviewservice',   x:10,  y:23.5,w:8,d:5,  h:3,   color:C.review,     label:'ec-review-service',              sublabel:'entitlements & pipelines' },
+    { id:'externalapi',     x:9.5, y:30.5,w:9,d:5.5,h:3,   color:C.externalapi,label:'ep-conduct-external-api',        sublabel:'external API gateway' },
+    { id:'actioningservice',x:9.5, y:38,  w:9,d:6.5,h:3.2, color:C.actioning,  label:'conduct-actioning-service',      sublabel:'disposition executor' }
+  ];
+
+  var SIDE_STRUCTS_BY_ID = {};
+  SIDE_STRUCTS.forEach(function (s) { SIDE_STRUCTS_BY_ID[s.id] = s; });
+
+  /* The centre point of a side structure's footprint — SIDE_STRUCTS gives the
+     NW corner, everything that connects two structures wants the middle. */
+  function structCentre(id) {
+    var s = SIDE_STRUCTS_BY_ID[id];
+    return s ? { x: s.x + s.w / 2, y: s.y + s.d / 2 } : null;
+  }
+
+  /* ---- cluster wiring -----------------------------------------------------
+   * The real relationships among the six control/review/actioning
+   * structures, traced from knowledge/system-explainer-input.md. Every
+   * edge here fired; portal<->external-api and review-service<->
+   * actioning-service did not, on purpose — see drawClusterLinks() in
+   * render.js for how the column layout keeps both of those legible as
+   * confirmed absences rather than as gaps in the data. `type` picks the
+   * pipe colour: 'control' for config-curator's own edges (Kafka-borne
+   * configuration, not a request), 'rest' for everything else. */
+  var CLUSTER_LINKS = [
+    { from:'manualruns',     to:'config',            mech:'bootstrap',    label:'config priming', type:'control' },
+    { from:'config',         to:'reviewservice',     mech:'Kafka + REST', label:'pipeline config / windowToken', type:'control' },
+    { from:'manualruns',     to:'portal',             mech:'REST',         label:'run status', type:'rest' },
+    { from:'reviewservice',  to:'portal',             mech:'REST',         label:'entitled pipeline IDs', type:'rest' },
+    { from:'reviewservice',  to:'externalapi',        mech:'REST',         label:'entitlements, reviewer-groups', type:'rest' },
+    { from:'portal',         to:'actioningservice',   mech:'lib → Kafka', label:'disposition, tiered', type:'rest' },
+    { from:'externalapi',    to:'actioningservice',   mech:'REST',         label:'bulk actions', type:'rest' }
   ];
 
   /* Cognition island — small external compound north of the evaluator. */
@@ -261,7 +335,7 @@
     },
     // side structure narrations
     {
-      id:'config', name:'ec-config-curator', x:5, y:21, r:4.5, color:C.config,
+      id:'config', name:'ec-config-curator', x:5.5, y:25.75, r:4.5, color:C.config,
       tag:'control room · window rotation · ShedLock freeze · Flow E',
       short:'ec-config-curator orchestrates the daily configuration boundary: it freezes incoming changes, rotates the window token across all data-plane services, and replays parked changes when the gate reopens.',
       body:'Once a day, per tenant, the freeze gate closes and all arriving configuration changes are parked in a staging store. ' +
@@ -272,7 +346,7 @@
         'Cron: 0 */15 * * * * (evaluated every 15 minutes, fires once at each tenant\'s daily boundary).'
     },
     {
-      id:'manualruns', name:'ec-manual-runs-service', x:5, y:41, r:4.5, color:C.manualruns,
+      id:'manualruns', name:'ec-manual-runs-service', x:5.5, y:18.75, r:4.5, color:C.manualruns,
       tag:'re-processing · Athena query · chunk strategy · Flow F',
       short:'ec-manual-runs-service re-processes historical communications through the surveillance pipeline on demand, using Athena to query the archive and streaming CSV results in parallel byte-range chunks.',
       body:'A compliance officer submits a run via POST /v1/tenants/{tenantName}/manual-runs. ' +
@@ -283,7 +357,7 @@
         'Scaling: minReplicas 3, maxReplicas 10, lagThreshold 100.'
     },
     {
-      id:'reviewservice', name:'ec-review-service', x:68, y:8, r:3.5, color:C.review,
+      id:'reviewservice', name:'ec-review-service', x:14, y:26, r:3.5, color:C.review,
       tag:'reviewer entitlements · pipeline-group bindings',
       short:'ec-review-service is the entitlement authority for the review interface: it maps reviewers to their pipeline IDs and manages reviewer groups, pipeline bindings, and supervision queue configuration.',
       body:'ea-ui-portal calls this service to resolve a reviewer\'s entitled pipeline IDs when reviewer groups are enabled. ' +
@@ -291,7 +365,7 @@
         'It owns no surveillance logic and does not participate in the data path — it is a configuration service queried on the review path.'
     },
     {
-      id:'portal', name:'ea-ui-portal', x:68, y:19, r:5.0, color:C.portal,
+      id:'portal', name:'ea-ui-portal', x:14, y:18.75, r:5.0, color:C.portal,
       tag:'reviewer web application · Flow G entry',
       short:'ea-ui-portal is the reviewer\'s and administrator\'s web application: it lists queues, renders alerted communications with matched phrases highlighted, and dispatches reviewer dispositions to the actioning tier.',
       body:'When a reviewer dispositions an alert, the portal calls the conduct-actioning library (in-process) which decides the tier topic based on selection size: small ≤20, medium 21–50, large >50 documents. ' +
@@ -301,7 +375,7 @@
         'Scaling: 3–9 replicas, CPU and memory triggers (not Kafka lag), pollingInterval 20 s.'
     },
     {
-      id:'externalapi', name:'ep-conduct-external-api', x:68, y:28, r:4.0, color:C.review,
+      id:'externalapi', name:'ep-conduct-external-api', x:14, y:33.25, r:4.0, color:C.externalapi,
       tag:'customer REST gateway · bulk actions · OAuth2/JWT',
       short:'ep-conduct-external-api is the customer-facing REST gateway for Conduct administration: reviewer groups, review entitlements, pipeline bindings, add-to-queue requests, and bulk actions. Every request is OAuth2/JWT authenticated.',
       body:'It owns no surveillance logic; it validates, audits every API interaction into app_audit_new, and forwards to ec-review-service and conduct-actioning-service. ' +
@@ -310,7 +384,7 @@
         'Scaling: 3–6 replicas, CPU 50% / memory 75% targets.'
     },
     {
-      id:'actioningservice', name:'conduct-actioning-service', x:68, y:38, r:4.5, color:C.actioning,
+      id:'actioningservice', name:'conduct-actioning-service', x:14, y:41.25, r:4.5, color:C.actioning,
       tag:'disposition executor · Mongo + ES two-store write · Flow G',
       short:'conduct-actioning-service executes what a reviewer decided: it applies the disposition to the supervised_item MongoDB document and to the Elasticsearch review index, then rolls up supervision metrics.',
       body:'It is the only service in the platform that mutates records another service created — ec-alerting-service wrote supervised_item and ec-indexer wrote the ES review document; conduct-actioning-service updates both. ' +
@@ -483,6 +557,35 @@
     t.pts.forEach(function (pt) { RELAY_POSTS.push({ x: pt[0], y: pt[1], z: t.z }); });
   });
 
+  /* ---- config-curator's fan-out ---------------------------------------
+   * The nine data-plane services it primes over REST, drawn as its own
+   * underground trunk rather than nine surface pipes crossing the belt —
+   * same convention the audit relay already uses to cross under the belt
+   * cleanly instead of running over it. A short connector drops from
+   * config-curator's south face into the gap between review-service and
+   * external-api (a 2-unit gap at this y, wide enough for a trench),
+   * meets a north-south trunk at x19 — the same clear corridor
+   * DOGLEG_X in render.js already uses, west of ec-reporting's footprint
+   * at x19.5 — and that trunk carries two shared spine runs (top row,
+   * bottom row) plus three individual spurs (quota, audit, reporting).
+   * The trunk crosses under the belt's top run once; it never needs to
+   * cross the middle run at all, because the middle run only exists for
+   * x >= 28 and the trunk sits at x19. No pulses here — this is
+   * configuration fan-out, not the audit relay, and this pass is
+   * positioning and routing only. */
+  var CONFIG_FANOUT = {
+    trench: [
+      { x0:5.5, y0:28.5, x1:5.5, y1:29.5 },              // config-curator's own drop
+      { x0:5.5, y0:29.5, x1:19,  y1:29.5, spine:true },  // connector to the trunk
+      { x0:19,  y0:4.6,  x1:19,  y1:36,   spine:true },  // the trunk itself
+      { x0:19,  y0:4.6,  x1:44,  y1:4.6,  spine:true },  // top-row spine: qualifier, filter, evaluator
+      { x0:19,  y0:16.3, x1:53,  y1:16.3 },              // quota
+      { x0:19,  y0:21.2, x1:28.6,y1:21.2 },              // audit
+      { x0:19,  y0:23,   x1:19.5,y1:23 },                // reporting
+      { x0:19,  y0:36,   x1:49.5,y1:36,  spine:true }    // bottom-row spine: indexer, alerting
+    ]
+  };
+
   function distToSeg(px, py, x0, y0, x1, y1) {
     var dx = x1 - x0, dy = y1 - y0, L2 = dx * dx + dy * dy;
     var t = L2 ? Math.max(0, Math.min(1, ((px - x0) * dx + (py - y0) * dy) / L2)) : 0;
@@ -552,19 +655,20 @@
        run up the west side. None of these cross the belt. */
     /* The y 18.5 trunk used to cross the whole floor; the records precinct now
        sits in the middle of it, so it stops short of the tower. */
-    [[8, 18.5, 26, 18.5], [8, 38.0, 46, 38.0], [10, 13.0, 10, 36.0]]
+    [[8, 18.5, 26, 18.5], [10, 13.0, 10, 36.0]]
       .forEach(function (r) {
         props.push({ kind: 'conduit', x0: r[0], y0: r[1], x1: r[2], y1: r[3], z: 0.75 });
       });
 
-    /* Spurs off the trunk to the machines it feeds. Only the four that can be
-       reached without crossing the belt — the top and bottom rows have the belt
-       between them and the nearest trunk. */
-    [['alerting', 54, 40.0, 54, 33.8],
-     ['echo',     44, 40.0, 44, 33.8],
-     ['indexer',  34, 40.0, 34, 33.8]].forEach(function (r) {
-      props.push({ kind: 'spur', x0: r[1], y0: r[2], x1: r[3], y1: r[4], z: 0.62 });
-    });
+    /* There used to be a third trunk at y 38.0 with a spur off it to each of
+       alerting, echo and indexer — cable flavour, not a real relationship.
+       It predated those three moving down to y 36 when each was rebuilt, and
+       was never adjusted afterward: the trunk ran straight through echo's
+       and indexer's casings, and the spurs dangled at y 40 short of it,
+       neither end actually meeting the other. Removed rather than patched,
+       because a fixed geometry would still draw a cable from manual-runs to
+       echo/indexer that doesn't exist — manual-runs' real rejoin points are
+       ec-gateway and ec-surveillance-filter, drawn on its own casing. */
 
     /* Belt-side stanchions carrying a cable strung post to post. This is the
        one thing the floor had no equivalent of: rocket-engine's pole line gives
@@ -660,6 +764,9 @@
     stations: STATIONS_FLAT,
     STATION_IDX_BY_ID: STATION_IDX_BY_ID,
     SIDE_STRUCTS: SIDE_STRUCTS,
+    SIDE_STRUCTS_BY_ID: SIDE_STRUCTS_BY_ID,
+    structCentre: structCentre,
+    CLUSTER_LINKS: CLUSTER_LINKS,
     COG_FLOOR: COG_FLOOR,
     COGNITION: COGNITION,
     districts: DISTRICTS,
@@ -667,6 +774,7 @@
     OFFBELT: OFFBELT,
     RELAY: RELAY,
     RELAY_POSTS: RELAY_POSTS,
+    CONFIG_FANOUT: CONFIG_FANOUT,
     TOWER: TOWER,
     stationToDistrict: STATION_TO_DISTRICT,
     palette: C,

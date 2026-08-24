@@ -383,6 +383,194 @@ rebuilt machine outgrows its box, and set the label anchor explicitly in
   section, fixed a second, unrelated staleness found in the same pass: it
   still described the pre-U-turn floor (one fork, audit on the belt) and was
   missing `kit.js`/`dock.js`/`dock.css` from the file list entirely.
+- **The review/actioning cluster relocated into a 2x2 block, wired, and
+  given bespoke drawers.** `ec-review-service`, `ea-ui-portal`,
+  `ep-conduct-external-api` and `conduct-actioning-service` came off the
+  single-file east column and into the space the removed reporting-corner
+  trio vacated, south of the belt's middle row — `review-service` and
+  `actioning-service` on one diagonal of the square, `portal` and
+  `external-api` on the other, so every real edge (traced from the
+  knowledge file, not guessed) is a short side and both confirmed-absent
+  edges (`review-service<->actioning-service`, `portal<->external-api`) are
+  the diagonals, drawn nowhere. `GH` grew 48→60 to give the block real
+  room. `ec-config-curator` did not move — the new review-service position
+  happens to give it a clean, non-belt-crossing line anyway. New in
+  `world.js`: `SIDE_STRUCTS_BY_ID`, `structCentre()`, `World.CLUSTER_LINKS`
+  (the five real edges as data, endpoints resolved live so a future move
+  can't drift out of sync with the wiring). New in `render.js`:
+  `drawClusterLinks()`, called from `drawDecals()` so the low copper pipes
+  it paints are covered by every structure's own casing where a pipe meets
+  a wall; a `✕` marker on each of the two confirmed-absent edges, not just
+  a gap, so an absence reads as checked rather than as an oversight. None
+  of the five runs cross the belt — the relocation was chosen specifically
+  so a plain surface duct is enough, no trench or overhead tube needed.
+  Separately, all six side structures (the four above, plus `config` and
+  `manualruns`) went from the one shared generic box to bespoke drawers:
+  `drawSideStruct()`'s body is now `sideShell()`, a shared skeleton
+  (plinth, ribbed casing, louvre bank, flat cap, vent stack, standby lamp)
+  every one of the six still stands on, with a new `BESPOKE_SIDE` dispatch
+  table (mirroring belt `BESPOKE`) layering one or two instruments specific
+  to what each service actually does on top of it: config-curator's
+  daily freeze gate and nine-lamp priming bank; manual-runs' Athena readout
+  and byte-range chunk lamps; review-service's card-index drawer fronts;
+  portal's reviewer-queue screen and four-tier dispatch; external-api's
+  badge checkpoint; actioning-service's twin re-stamp presses (rose for
+  Mongo, amber for Elasticsearch, the same two colours their creators
+  already use) and a dead-end failure chute with no siding back, because
+  a non-retryable failure here genuinely has no DLT to retry from.
+- **Config-curator/manual-runs swapped, the cluster pushed further south,
+  and three pieces of stale decoration removed.** Before moving anything,
+  audited the floor programmatically (bounding-box overlap checks against
+  every current structure, not eyeballing) for leftover set dressing that
+  no longer matched what stands on the floor now. Found: a conduit trunk at
+  y 38 that physically cut through `echo`'s and `indexer`'s casings and
+  implied a manual-runs→echo/indexer relationship that has never existed
+  (manual-runs' real rejoin points are `ec-gateway` and
+  `ec-surveillance-filter`) — it predated those two moving down to y 36
+  when each was rebuilt and was never adjusted after; and three `spur`
+  props (one each off `alerting`, `echo`, `indexer`) that dangled at y 40
+  short of that trunk, connected to nothing on their far end. All four
+  removed rather than patched, since the trunk's story was wrong regardless
+  of its geometry. With those clear, `ec-config-curator` and
+  `ec-manual-runs-service` swapped positions — config-curator now sits
+  south, near the review/actioning cluster it has a real (thin) edge to,
+  so that pipe is short instead of crossing the floor; manual-runs, which
+  has no relationship to that cluster at all, took its old spot near the
+  belt's top row, closer to the two stations it actually rejoins. The
+  cluster itself moved further south again — its first placement left only
+  a 1.7-2.2 unit gap from `echo`/`indexer`/`alerting`'s south edges, tight
+  enough to graze at some zooms; it now clears by 6.7+. `GH` grew 60→66 to
+  fit. The pallets/cabinets/drums/spools already on the floor needed no
+  manual re-placement: `buildProps()` checks `blocked()`/
+  `blockedByStructure()` against `SIDE_STRUCTS` at module-load time, after
+  the array is finalized, so updating positions and reloading was enough
+  for those to self-correct — only `conduit`/`spur` props skip that check,
+  which is what let them go stale silently in the first place. Also fixed,
+  found in the same audit: the two ✕ absence-markers from the wiring pass
+  above sit on a square's two diagonals, which cross at the same point, so
+  both had been computing to one identical coordinate — only one was ever
+  visible. Now drawn at t 0.38/0.62 along their own diagonal instead of
+  both at the shared centre.
+- **The review/actioning cluster moved again, off the south extension and
+  into the west-central corridor instead.** The prior placement (south of
+  the belt, needing GH extended to 66) worked but spent floor growth to
+  solve a problem the west side already had unclaimed space for: the gap
+  the config/manual-runs swap opened between them (manual-runs now ends
+  y21, config-curator now starts y38) was standing empty. The cluster
+  moved there instead — `reviewservice`/`portal` centred around y18,
+  `externalapi`/`actioningservice` around y30, all four kept west of x28
+  with margin, which is where the belt's middle run begins, so none of the
+  four ever falls inside that segment's span and the depth-sort "south of
+  a horizontal run" setback rule never has to be checked. `GH` came back
+  down to 48. The diagonal-square wiring logic needed no changes at all —
+  `World.CLUSTER_LINKS` resolves endpoints live through
+  `World.structCentre()`, so moving `SIDE_STRUCTS` was the whole edit.
+- **The 2x2 square didn't actually fit, and the four got real bespoke
+  machine drawers.** The square needed ~12 units side by side; the west
+  corridor is only ~11.5 wide before `ec-reporting`'s footprint starts at
+  x19.5 — missed on the prior pass because clearance was only checked
+  against belt stations and other `SIDE_STRUCTS`, never the two `OFFBELT`
+  structures, and `portal`'s east column landed partly inside
+  `ec-reporting`. Caught with a programmatic bounding-box check (not
+  eyeballing) before it shipped. Rebuilt as a single column instead —
+  `portal`, `reviewservice`, `externalapi`, `actioningservice` top to
+  bottom — chosen because a straight stack through a 4-cycle graph
+  (review-portal-actioning-external api-review) can only ever make three
+  of the four real edges adjacent, and this order puts exactly the three
+  real edges on adjacent pairs, leaves both absent edges
+  (review<->actioning, portal<->external-api) on the "skip-one" pairs
+  where no line is drawn at all, and leaves the fourth real edge
+  (portal<->actioning-service) as the single "skip-two" run needing help.
+  `drawClusterLinks()` special-cases that one edge with a two-segment
+  dogleg through `DOGLEG_X`/`DOGLEG_Y`, a point in the clear gap east of
+  the column and short of `ec-reporting`; the two absence markers moved to
+  the same gap (at each pair's own y-midpoint) since the direct line
+  between them now runs under two other casings. Separately, the four
+  went from the shared `sideShell()` skeleton plus a couple of bolted-on
+  instruments to real distinguishing mechanisms:
+  `ec-review-service` — a rotary card-index drum on the deck, always
+  turning slowly (the one departure from busy()-gated motion on this
+  floor, standing for "always available to query" since a lookup has no
+  fire event to hang a work cycle off), two query hatches on the face for
+  its two callers; `ea-ui-portal` — a hooded readout (the one side
+  structure with a screen a person reads) and a four-chute dispatch sorter
+  at the apron for the small/medium/large/bulk tier split;
+  `ep-conduct-external-api` — a turnstile door, a badge/OAuth checkpoint
+  post, and a "NOW SERVING" ticket readout for the async bulk-action poll;
+  `conduct-actioning-service` — twin independent press rams with no
+  shared crank between them (rose/Mongo, amber/Elasticsearch), because the
+  two-store write they perform is not transactional and nothing
+  mechanical here should imply otherwise.
+- **All six rebuilt from scratch to the belt's own construction discipline,
+  not the shared shell.** The previous pass gave each a couple of bolted-on
+  instruments but kept `sideShell()`'s one generic box underneath, which is
+  exactly why it still read as city-era buildings rather than floor
+  machinery — flagged directly, along with their footprints (w5-7,d4-5)
+  running smaller than the belt's own (w8.5-10.4,d5.2-7.6) despite reading
+  visually larger, because the deck overhang and vent-stack add bulk out
+  of proportion to a small footprint. Fixed both: `LIVERY` in `kit.js`
+  gained entries for all six ids (`config`, `manualruns`, `review`,
+  `portal`, `externalapi`, `actioning`), so `casing(id)` now derives their
+  body/plinth/cap the same three-value way it does for every belt
+  station, and a new `drawSideBase(o, id)` (plinth, casing, deck — the one
+  piece genuinely common to all of them, the way every belt station still
+  independently draws its own plinth) replaced `sideShell()` for these
+  six. Sized up toward belt scale: w8-9, d5-6.5, h3-3.5, against the belt's
+  w8.5-10.4/d5.2-7.6/h3-3.3 — capped short of full parity only for
+  config-curator and manual-runs (w7,d5.5), which share this stretch of
+  floor with the four-machine column and don't have room for full width
+  without the two columns colliding or the column encroaching on
+  `ec-reporting`. `ep-conduct-external-api` also stopped reusing
+  `C.review`/`LIVERY.review` — the same colour on two different buildings
+  read as one machine twice — and got its own amber (`C.externalapi`,
+  `'#9a7a3a'`), fitting a checkpoint/gatehouse read.
+  Re-read `knowledge/system-explainer-input.md` directly rather than
+  working from the summarized narration bodies already in `world.js`, and
+  found real mechanical detail worth building from: config-curator parks
+  frozen changes rather than dropping them (a staging bin on the deck,
+  not a chute to nowhere) and ShedLock makes its cron single-flight (one
+  brass lock fitting, not one per replica — extra replicas buy
+  availability, not throughput); manual-runs runs four crons on four
+  different intervals (four small clock faces) and asserts Athena's own
+  row count against the sum of its stitched chunks (twin dials, a green
+  light only on agreement), and its DLT is re-consumed rather than
+  terminal (a loop-back pipe instead of a dead end); review-service's
+  MongoDB database is literally named `alcatraz` (a barred vault door,
+  stencilled), pipeline sync is a wholesale replace rather than a merge
+  (a warning stencil), and a malformed CDC payload fast-fails straight to
+  its own DLT with no retry attempted (a separate mark from the normal
+  flow); external-api audits every call before routing it via a
+  highest-precedence servlet filter (the audit stamp sits at the very
+  entrance, ahead of the badge post), holds two separate MongoDB
+  connections — shared and site — (two intake pipes, not one), and has an
+  explicit circuit breaker on queue capacity (a pressure gauge with a
+  relief valve rather than a silent overflow); actioning-service treats
+  "item not found" as an immediate reject with no retry attempted, a
+  different failure path from the two-store write's own dead-end chute,
+  drawn as its own small mark. Verified with a programmatic bounding-box
+  check against every structure on the floor (not just the four-machine
+  column against itself), `node --check`, and a full smoke test — no
+  overlaps, no console errors.
+- **config-curator repositioned to pair with manual-runs; two new edges;
+  pipe colour now carries meaning.** Moved from the south end of the west
+  sub-column (beside actioning-service) to directly below manual-runs —
+  short edges to both manual-runs (bootstrap/config priming) and
+  review-service, and a position that reads as its own control facility
+  rather than another member of the review/actioning cluster.
+  `World.CLUSTER_LINKS` gained `manualruns↔config` and `manualruns↔portal`
+  (both real edges, previously undrawn) and a `type` field
+  (`'control'`/`'rest'`); `drawClusterLinks()` in `render.js` picks a
+  cooler grey-blue for config-curator's own edges (`LINK_COLOR_CONTROL`,
+  Kafka-borne configuration) against the warm copper (`LINK_COLOR`) every
+  other edge on this graph already used (REST/library calls). Deliberately
+  did **not** draw config-curator's wider fan-out to the nine data-plane
+  services it primes (the belt stations plus the audit tower) as floor
+  conduits — nine literal pipes crossing the belt and threading around the
+  audit tower's footprint would mean cutting through machinery to
+  visualise a control facility, the opposite of the point. That fan-out
+  stays symbolic, carried by the nine-lamp bank already built into its
+  casing. Verified with the same programmatic bounding-box check plus a
+  full smoke test — no overlaps, no console errors.
 
 **Next, in order**
 

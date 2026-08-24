@@ -3005,6 +3005,31 @@
   var RELAY_SPINE  = [0.90, 0.96];
   var RELAY_RISER  = [0.94, 1.00];
 
+  /* A small flat chevron laid on the trench floor, pointing from (x0,y0)
+     toward (x1,y1) — the direction data actually flows, not just the
+     direction the segment happens to be authored in (every trench array
+     on this floor is authored source-to-destination, so that is the same
+     thing). Placed at 1-2 points along a run depending on its length, so a
+     short spur still gets one and a long spine reads as a repeated cue
+     rather than a single easy-to-miss arrow. */
+  function flowArrows(x0, y0, x1, y1, color) {
+    var dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1;
+    var ax = dx / len, ay = dy / len, px = -ay, py = ax;
+    var n = len > 10 ? 2 : 1, i;
+    for (i = 1; i <= n; i++) {
+      var t = i / (n + 1);
+      var cx = x0 + dx * t, cy = y0 + dy * t;
+      var L = 0.30, W = 0.16;
+      var tip = P(cx + ax * L * 0.6, cy + ay * L * 0.6, -0.08);
+      var b0  = P(cx - ax * L * 0.4 + px * W, cy - ay * L * 0.4 + py * W, -0.08);
+      var b1  = P(cx - ax * L * 0.4 - px * W, cy - ay * L * 0.4 - py * W, -0.08);
+      ctx.fillStyle = color;
+      Iso.poly(ctx, [tip, b0, b1]);
+    }
+  }
+
+  var RELAY_ARROW = '#f0c840';
+
   function drawTrenches() {
     var runs = World.RELAY.trench, i, t, win;
     for (i = 0; i < runs.length; i++) {
@@ -3021,6 +3046,38 @@
         cap: !!r.riser,
         hazard: r.src.length > 1        /* mark the common runs, not every stub */
       });
+      /* every run here is authored source (machine) -> destination (audit),
+         so the arrow points the same way the data already reads: in, to
+         the tower */
+      flowArrows(r.x0, r.y0, r.x1, r.y1, RELAY_ARROW);
+    }
+  }
+
+  /* ---- config-curator's fan-out trunk --------------------------------------
+   * Nine data-plane services primed over REST, routed underground rather
+   * than as nine surface pipes crossing the belt or threading around the
+   * audit tower — same reasoning the relay network above already uses to
+   * cross the belt cleanly. Undecorated on purpose relative to the relay:
+   * no pulse (this is a positioning/routing pass, not a new animation),
+   * and a distinct kerb colour and arrow tint so a reader can tell the two
+   * underground networks apart at a glance — cool slate kerb and amber
+   * arrows here, against the relay's warm default kerb and yellow-gold
+   * arrows, and the arrows point the opposite way: out from config-curator,
+   * not in toward a tower. */
+  var FANOUT_KERB = '#5a6a80';
+  var FANOUT_ARROW = '#e0a840';
+
+  function drawConfigFanout() {
+    var runs = World.CONFIG_FANOUT.trench, i;
+    for (i = 0; i < runs.length; i++) {
+      var r = runs[i];
+      trench(r.x0, r.y0, r.x1, r.y1, {
+        kerbColor: FANOUT_KERB,
+        hazard: !!r.spine   /* mark the shared runs, not every stub, same rule the relay uses */
+      });
+      /* authored config-curator -> destination throughout, so the arrow
+         points the same way: out */
+      flowArrows(r.x0, r.y0, r.x1, r.y1, FANOUT_ARROW);
     }
   }
 
@@ -3058,6 +3115,84 @@
       if (dc.kind === 'bay')   drawBay(dc);
       if (dc.kind === 'topic') drawTopicLane(dc);
     });
+    drawClusterLinks();
+  }
+
+  /* ---- cluster wiring ------------------------------------------------------
+   * The six control/review/actioning structures' real call graph, laid on
+   * the slab as low pipe between structure centres — flat paint, drawn
+   * here so every structure (painted later, in the depth-sorted pass)
+   * covers the pipe's end where it meets a wall. None of these seven runs
+   * cross the belt: the column placement was chosen specifically so this
+   * stays a surface duct instead of needing a trench or an overhead tube,
+   * the way the audit relay does. World.CLUSTER_LINKS is the data;
+   * positions are looked up live via World.structCentre() so a future
+   * move keeps this correct without a second edit — except the one edge
+   * below that is routed by hand, because a straight line for it would
+   * run under two other casings. Colour carries the one distinction that
+   * matters here: config-curator's own edges are configuration riding on
+   * Kafka, not a request, so they run in a cooler, quieter tone than the
+   * REST/library traffic everything else on this graph is. */
+  var LINK_COLOR = '#9c8256';        // REST / library
+  var LINK_COLOR_CONTROL = '#6a84a0'; // Kafka-borne configuration
+
+  function linkColor(lk) { return lk.type === 'control' ? LINK_COLOR_CONTROL : LINK_COLOR; }
+
+  /* portal and actioning-service sit at opposite ends of the column, with
+     review-service and external-api between them — the one edge in the
+     4-cycle a straight stack can't make adjacent to both its endpoints (see
+     the placement comment on the cluster's SIDE_STRUCTS entries). Routed
+     through the clear gap east of the column, before ec-reporting's
+     footprint starts, rather than straight through the two casings between
+     them. */
+  var DOGLEG_X = 19, DOGLEG_Y = 30;
+
+  function drawClusterLinks() {
+    World.CLUSTER_LINKS.forEach(function (lk) {
+      var a = World.structCentre(lk.from), b = World.structCentre(lk.to);
+      if (!a || !b) return;
+      var isDogleg = (lk.from === 'portal' && lk.to === 'actioningservice') ||
+                     (lk.from === 'actioningservice' && lk.to === 'portal');
+      var col = linkColor(lk);
+      if (isDogleg) {
+        pipe(a.x, a.y, DOGLEG_X, DOGLEG_Y, 0.11, 0.10, col);
+        pipe(DOGLEG_X, DOGLEG_Y, b.x, b.y, 0.11, 0.10, col);
+        floorText(DOGLEG_X + 0.15, DOGLEG_Y, 0.03, [lk.mech],
+                  { size: 5.6, color: 'rgba(226,214,190,0.55)', dir: 'y' });
+        return;
+      }
+      pipe(a.x, a.y, b.x, b.y, 0.11, 0.10, col);
+      var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      var dx = b.x - a.x, dy = b.y - a.y;
+      floorText(mx, my, 0.03, [lk.mech], {
+        size: 5.6, color: 'rgba(226,214,190,0.55)',
+        dir: Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y'
+      });
+    });
+
+    /* the two edges the real graph never draws — marked, not just omitted,
+       so an absence reads as confirmed rather than as an oversight. The
+       direct line between either pair now runs through the two structures
+       standing between them in the column, so both markers sit in the same
+       clear east gap the dogleg above uses, at the y level partway between
+       each pair's own two members, rather than literally on the (now
+       occupied) line between them. */
+    var rv = World.structCentre('reviewservice'), ac = World.structCentre('actioningservice');
+    var po = World.structCentre('portal'), ex = World.structCentre('externalapi');
+    [[rv, ac, (rv.y + ac.y) / 2], [po, ex, (po.y + ex.y) / 2]].forEach(function (pr) {
+      if (!pr[0] || !pr[1]) return;
+      var mx = DOGLEG_X, my = pr[2];
+      var mp = P(mx, my, 0.03);
+      ctx.fillStyle = 'rgba(18,18,20,0.7)';
+      ctx.beginPath(); ctx.arc(mp.x, mp.y, 7, 0, 6.2832); ctx.fill();
+      ctx.strokeStyle = 'rgba(160,150,140,0.55)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(mp.x, mp.y, 7, 0, 6.2832); ctx.stroke();
+      ctx.fillStyle = 'rgba(210,200,190,0.75)';
+      ctx.font = '9px ui-monospace, Menlo, Consolas, monospace';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('✕', mp.x, mp.y + 0.5);
+    });
   }
 
   var PROP_KIND = {
@@ -3091,12 +3226,21 @@
 
   /* ---- side structure ----------------------------------------------------- */
 
-  /* The eleven off-belt repos. They are machinery too — plant standing away
+  /* The six off-belt repos. They are machinery too — plant standing away
      from the belt, not offices: a plinth, a panelled casing, a flat capped top
      with a vent stack and a louvre bank, and a standby lamp. (They carried a
      gable roof while this floor was still a city; a pitched roof is the one
-     shape that instantly reads as a building.) */
-  function drawSideStruct(o) {
+     shape that instantly reads as a building.) This is the shared fallback —
+     see BESPOKE_SIDE below for the per-service drawers replacing it. */
+  /* The shared shell every side structure is built from: plinth, panelled
+     casing, louvre bank, flat cap, vent stack, standby lamp, name stencil.
+     Returns the palette and the face/deck reference planes (sf, top) so a
+     bespoke drawer can add its own instruments in the same coordinate space
+     without recomputing them. Belt stations get no such shared function —
+     each is bespoke to the metal — but these six share one physical build
+     (a small plant casing) and differ only in what is mounted on the face,
+     which is what BESPOKE_SIDE below is for. */
+  function sideShell(o) {
     var sf = o.y + o.d + 0.01;
     var rows, cols, r, c, z0, z1, u0, u1;
 
@@ -3148,7 +3292,7 @@
     Iso.cylinder(ctx, { x: o.x + 0.80, y: o.y + o.d - 0.70, z: top,
                         r: 0.30, h: 0.26, color: cap, ring: 0.55 });
 
-    /* standby lamp — dim red at rest, pulsing green while this repo is live */
+    /* standby lamp — dim red at rest, pulsing green while under inspection */
     var lp = o.active ? (0.70 + 0.30 * Math.sin(clk * 5)) : 0.60;
     ctx.fillStyle = o.active
       ? 'rgba(90,210,80,' + lp.toFixed(2) + ')'
@@ -3158,7 +3302,283 @@
     /* short name on the face */
     var slug = (o.label || o.id || '').replace(/^ec-/, '').split('-').slice(0, 2).join('-');
     faceText(o.x + 0.28, sf, o.h - 0.30, [slug], { size: 6.0, color: 'rgba(16,14,10,0.55)' });
+
+    return { body: body, plinth: plinth, cap: cap, sf: sf, top: top };
   }
+
+  function drawSideStruct(o) { sideShell(o); }
+
+  /* ---- the six rebuilt side structures -------------------------------------
+   * Rebuilt from scratch to the same three-material discipline as the belt
+   * machines (casing(id): body/plinth/cap, from the LIVERY entries added for
+   * these six ids in kit.js) rather than the one shared sideShell() template
+   * plus bolted-on instruments the first pass used — which is exactly why
+   * that pass still read as city-era buildings rather than floor machinery.
+   * Sized up toward belt scale too (w8-9, d5-6.5, h3-3.5, against the belt's
+   * own w8.5-10.4, d5.2-7.6, h3-3.3), capped short of full parity only where
+   * the corridor genuinely doesn't have the room — config-curator and
+   * manual-runs share this stretch of floor with the four-machine column and
+   * neither pair fits at full belt width without the two columns colliding
+   * or the column encroaching on ec-reporting. None of the six get a busy()-
+   * gated work cycle: nothing here is ever fired by the simulation, so
+   * there is no cam to hang seg()/cyc() strokes off the way gateway's press
+   * has one. Detail comes from real facts in
+   * knowledge/system-explainer-input.md instead of a moving mechanism. */
+
+  function drawSideBase(o, id) {
+    var cs = casing(id);
+    var sf = o.y + o.d + 0.01, deck = 0.20, top = deck + o.h;
+    Iso.box(ctx, { x: o.x - 0.12, y: o.y - 0.12, z: 0, w: o.w + 0.24, d: o.d + 0.24,
+                   h: deck, color: cs.plinth });
+    Iso.box(ctx, { x: o.x, y: o.y, z: deck, w: o.w, d: o.d, h: o.h, color: cs.body });
+    Iso.box(ctx, { x: o.x - 0.10, y: o.y - 0.10, z: top, w: o.w + 0.20, d: o.d + 0.20,
+                   h: 0.14, color: cs.cap });
+    return { cs: cs, sf: sf, deck: deck, top: top };
+  }
+
+  /* ---- ec-config-curator: the freeze-gate control room -----------------
+   * A daily boundary, not a request path. Arriving changes during the
+   * freeze are PARKED, not dropped — held in a staging bin the reader can
+   * see is a bin, not a chute to nowhere — and replayed once the window
+   * reopens. The nine-lamp bank is the data-plane services primed in
+   * parallel; the single brass lock stands for ShedLock's single-flight
+   * cron — deliberately one fitting, not one per replica, since extra
+   * replicas here buy availability, not throughput. */
+  function drawConfigCurator(o) {
+    var b = drawSideBase(o, 'config'), sf = b.sf, top = b.top, cs = b.cs;
+
+    ribs(o.x + 0.3, o.x + o.w - 0.3, sf, b.deck + 0.20, o.h - 0.9, 6);
+    louvres(o.x + 0.3, sf, b.deck + 0.20, o.w * 0.28, o.h - 1.1, 4);
+
+    /* striped barrier arm on the apron — the freeze itself */
+    var az = o.h * 0.6;
+    Iso.cylinder(ctx, { x: o.x + 0.4, y: o.y + o.d + 0.55, z: b.deck, r: 0.08, h: az, color: cs.plinth });
+    hazardStrip(o.x + 0.4, o.x + o.w - 0.4, o.y + o.d + 0.55, b.deck + az, 0.12, 0.32);
+
+    /* nine-lamp priming bank */
+    matrix(o.x + 0.35, sf, b.deck + 0.20, 3, 3, 0.15, 9, 9, '#6adf72', 'rgba(106,223,114,0.34)');
+
+    /* staging bin on the deck — parked changes, held not dropped */
+    var bx = o.x + o.w - 1.5, by = o.y + o.d - 1.0;
+    Iso.box(ctx, { x: bx, y: by, z: top, w: 1.1, d: 0.8, h: 0.34, color: M.ironD, edge: 'rgba(0,0,0,0.4)' });
+    stencil(bx + 0.06, by + 0.82, top + 0.05, 'staged', { size: 4.4 });
+
+    /* the one ShedLock cylinder */
+    Iso.cylinder(ctx, { x: o.x + o.w - 0.5, y: o.y + 0.5, z: top, r: 0.15, h: 0.22, color: M.brass });
+    lamp(o.x + o.w - 0.5, o.y + 0.5, top + 0.24, 0.06, true, '#e0c060', 2.0);
+
+    stencil(o.x + 0.28, sf, b.deck + 0.10, 'FREEZE · STAGE · ROTATE', { size: 4.6 });
+  }
+
+  /* ---- ec-manual-runs-service: the remediation bench --------------------
+   * Athena is queried, not called — the readout is a query state. A
+   * compaction gate physically blocks the chunk lane until compaction
+   * finishes; twin dials are the "seam assertion" — Athena's own row count
+   * against the sum of the stitched chunks, a green light only when they
+   * agree. Four small clock faces are the four crons this service runs on
+   * four different intervals (15/5/60/30 min) rather than one. Its DLT is
+   * re-consumed, not terminal, so the reject chute here loops back into the
+   * intake rather than dead-ending. */
+  function drawManualRuns(o) {
+    var b = drawSideBase(o, 'manualruns'), sf = b.sf, top = b.top, cs = b.cs, i;
+
+    ribs(o.x + 0.3, o.x + o.w - 0.3, sf, b.deck + 0.20, o.h - 0.9, 6);
+
+    readout(o.x + 0.28, sf, o.h - 0.70, 1.7, 0.36, ['ATHENA', 'SUCCEEDED'], { size: 5.6, color: '#e0b840' });
+
+    /* compaction gate — nothing moves through until this is open */
+    var gx = o.x + o.w - 1.15;
+    door(gx, sf, b.deck + 0.20, 0.5, o.h - 0.5, cs.plinth);
+    lamp(gx + 0.25, sf, o.h - 0.24, 0.06, true, '#7ad080', 1.6);
+
+    /* byte-range chunk lamps */
+    matrix(o.x + 0.35, sf, b.deck + 0.16, 5, 1, 0.14, 5, 5, '#e0b840', 'rgba(224,184,64,0.34)');
+
+    /* seam-assertion twin dials on the deck */
+    Iso.cylinder(ctx, { x: o.x + o.w * 0.32, y: o.y + 0.4, z: top, r: 0.16, h: 0.09, color: M.steel });
+    Iso.cylinder(ctx, { x: o.x + o.w * 0.52, y: o.y + 0.4, z: top, r: 0.16, h: 0.09, color: M.steel });
+    ctx.fillStyle = 'rgba(120,220,140,0.85)';
+    Iso.disc(ctx, o.x + o.w * 0.42, o.y + 0.4, top + 0.12, 0.07);
+
+    /* four cron clock faces — 15 / 5 / 60 / 30 minutes */
+    for (i = 0; i < 4; i++) {
+      Iso.cylinder(ctx, { x: o.x + o.w - 0.5, y: o.y + 0.5 + i * 0.42, z: top,
+                          r: 0.10, h: 0.05, color: M.iron });
+    }
+
+    /* DLT loop-back — re-consumed, not a dead end */
+    var lx = o.x + 0.4, ly = o.y + o.d + 0.4;
+    pipe(lx, ly, lx, o.y + o.d, 0.05, 0.09, '#6a8e6a');
+    stencil(o.x + 0.28, sf, b.deck + 0.10, 'rejoin → gateway / filter', { size: 4.2 });
+  }
+
+  /* ---- ec-review-service: the alcatraz registry --------------------------
+   * No surveillance logic, no mutation — a lookup, so the standout part is
+   * a vault door, not a press: the backing store is a MongoDB database
+   * literally named alcatraz. Pipeline sync is a wholesale replace, not a
+   * merge, which is worth a warning stencil rather than a hidden risk. A
+   * rotary index drum on the deck turns slowly and continuously — the one
+   * deliberate departure from busy()-gated motion on this floor, standing
+   * for "always available to query" since a lookup has no fire event to
+   * hang a work cycle off. Two hatches are the two callers this service
+   * ever hears from; a third, unlabelled red mark is the fast fail a
+   * malformed CDC payload takes straight to its own DLT, no retry. */
+  function drawReviewService(o) {
+    var b = drawSideBase(o, 'review'), sf = b.sf, top = b.top, cs = b.cs, i;
+
+    /* vault door — barred, centred */
+    var dw = Math.min(1.1, o.w * 0.32), dx = o.x + o.w / 2 - dw / 2;
+    plate(dx, sf, b.deck + 0.16, dw, o.h - 0.5, M.ironD);
+    for (i = 0; i < 5; i++) plate(dx + 0.08 + i * (dw - 0.16) / 4, sf, b.deck + 0.22, 0.04, o.h - 0.62, M.steel);
+    stencil(dx + 0.02, sf, o.h - 0.16, 'alcatraz', { size: 4.6, color: 'rgba(220,222,226,0.55)' });
+
+    /* rotary index drum, ambient turn */
+    var cx = o.x + o.w / 2, cy = o.y + o.d / 2, dr = Math.min(o.w, o.d) * 0.28, dh = 0.26;
+    Iso.cylinder(ctx, { x: cx, y: cy, z: top, r: dr, h: dh, color: cs.cap });
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1;
+    var slots = 10, spin = clk * 0.15, a, p0, p1;
+    for (i = 0; i < slots; i++) {
+      a = spin + i / slots * 6.2832;
+      p0 = P(cx + Math.cos(a) * dr, cy + Math.sin(a) * dr, top);
+      p1 = P(cx + Math.cos(a) * dr, cy + Math.sin(a) * dr, top + dh);
+      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+    }
+
+    /* two query hatches: portal, external-api */
+    door(o.x + 0.26, sf, b.deck + 0.16, 0.30, o.h - 0.6, cs.plinth);
+    lamp(o.x + 0.41, sf, o.h - 0.18, 0.06, true, '#7ad0e0', 3.1);
+    door(o.x + o.w - 0.56, sf, b.deck + 0.16, 0.30, o.h - 0.6, cs.plinth);
+    lamp(o.x + o.w - 0.41, sf, o.h - 0.18, 0.06, true, '#7ad0e0', 2.4);
+
+    /* replace-not-merge warning, and the fast-fail mark for malformed CDC */
+    stencil(o.x + 0.26, sf, b.deck + 0.08, 'CDC: REPLACE not merge', { size: 4.0, color: 'rgba(224,120,100,0.55)' });
+    ctx.fillStyle = 'rgba(200,60,50,0.7)';
+    Iso.disc(ctx, o.x + o.w - 0.35, o.y + o.d + 0.3, 0.03, 0.09);
+  }
+
+  /* ---- ea-ui-portal: the dispatch desk ------------------------------------
+   * The one side structure with a screen a person actually reads, so it
+   * gets a hooded readout instead of a bare plate. It produces only —
+   * there is no @KafkaListener anywhere in this service, it never
+   * consumes — which is why nothing feeds in from the apron the way it
+   * does at every other machine on this floor. The four-chute sorter is
+   * the small/medium/large/bulk tier a disposition is dispatched into. */
+  function drawPortal(o) {
+    var b = drawSideBase(o, 'portal'), sf = b.sf, top = b.top, cs = b.cs, i;
+
+    ribs(o.x + 0.3, o.x + o.w - 0.3, sf, b.deck + 0.20, o.h - 1.3, 5);
+
+    /* hood over the screen */
+    Iso.box(ctx, { x: o.x + 0.20, y: o.y - 0.14, z: top - 0.90, w: o.w - 0.40, d: 0.16, h: 0.18, color: cs.plinth });
+    readout(o.x + 0.28, sf, o.h - 0.82, o.w - 1.7, 0.46,
+            ['QUEUE: 12 alerted', 'phrase match: 3'], { size: 5.8, color: '#8fe0c0' });
+
+    /* four-chute dispatch sorter at the apron */
+    var tiers = [['S', '#8d949c'], ['M', '#7aa8d0'], ['L', '#c9a233'], ['BULK', '#c05040']];
+    var cw = (o.w - 0.6) / 4;
+    for (i = 0; i < 4; i++) {
+      var tx = o.x + 0.3 + i * cw;
+      Iso.box(ctx, { x: tx, y: o.y + o.d, z: 0, w: cw - 0.10, d: 0.5, h: 0.10, color: tiers[i][1] });
+      floorText(tx + (cw - 0.10) / 2 - 0.06, o.y + o.d + 0.56, 0.03, [tiers[i][0]],
+                { size: 4.2, color: 'rgba(255,255,255,0.55)' });
+    }
+
+    stencil(o.x + 0.26, sf, b.deck + 0.08, 'produces only — no Kafka listener',
+            { size: 3.8, color: 'rgba(200,214,232,0.4)' });
+  }
+
+  /* ---- ep-conduct-external-api: the checkpoint ----------------------------
+   * Every call is audited before it is even routed — a servlet filter of
+   * the highest precedence — so the audit stamp sits at the very entrance,
+   * ahead of the badge post and the turnstile it walks through next. Two
+   * intake pipes are the two Mongo connections this service holds open,
+   * shared and site — a site-Mongo outage can break tenant-scoped reads
+   * while shared reads keep working, which is why they are drawn as two
+   * separate runs rather than one. The gauge is the addToQueue circuit
+   * breaker: request count plus current queue depth against capacity,
+   * with a relief valve rather than a silent overflow. The ticket
+   * dispenser is the one thing that isn't a pure forward: a bulk action
+   * hands back a jobId immediately and the caller polls for it. */
+  function drawExternalApi(o) {
+    var b = drawSideBase(o, 'externalapi'), sf = b.sf, top = b.top, cs = b.cs;
+
+    ribs(o.x + 0.3, o.x + o.w - 0.3, sf, b.deck + 0.20, o.h - 0.9, 5);
+
+    /* audit stamp at the entrance — first thing that happens */
+    var ax = o.x + o.w / 2, ay = o.y + o.d + 0.95;
+    Iso.box(ctx, { x: ax - 0.18, y: ay - 0.14, z: 0, w: 0.36, d: 0.28, h: 0.30, color: M.ironD });
+    stencil(ax - 0.24, ay + 0.34, 0.05, 'AUDIT', { size: 3.8, color: 'rgba(230,200,120,0.6)' });
+
+    /* badge/OAuth checkpoint post, then the turnstile */
+    var px = o.x + o.w / 2, py = o.y + o.d + 0.55;
+    Iso.cylinder(ctx, { x: px, y: py, z: 0, r: 0.09, h: 0.55, color: cs.plinth });
+    lamp(px, py, 0.60, 0.08, true, '#e0c060', 4.2);
+    door(o.x + o.w / 2 - 0.22, sf, b.deck + 0.16, 0.44, o.h - 0.6, cs.plinth);
+
+    /* two Mongo intakes: shared, site */
+    pipe(o.x - 0.5, o.y + 0.6, o.x, o.y + 0.6, b.deck + 0.1, 0.10, '#5a9060');
+    pipe(o.x - 0.5, o.y + 1.3, o.x, o.y + 1.3, b.deck + 0.1, 0.10, '#8a6a30');
+
+    /* pressure gauge + relief valve — the queue-capacity circuit breaker */
+    var gx = o.x + o.w - 0.6, gy = o.y + 0.5;
+    Iso.cylinder(ctx, { x: gx, y: gy, z: top, r: 0.16, h: 0.08, color: M.steel });
+    var gp = P(gx, gy, top + 0.09);
+    ctx.strokeStyle = 'rgba(200,60,50,0.85)'; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(gp.x, gp.y, 6, 0, 4.6); ctx.stroke();
+
+    /* ticket dispenser for the async bulk-action poll */
+    readout(o.x + o.w - 1.65, sf, o.h - 0.64, 1.35, 0.30, ['NOW SERVING 214'], { size: 5.0, color: '#e0a860' });
+  }
+
+  /* ---- conduct-actioning-service: twin independent presses ----------------
+   * The only service on this floor that mutates a record another service
+   * created, so it doesn't stamp a blank card — it re-stamps two already-
+   * filed ones, in the two colours the read side already uses: alerting's
+   * rose for supervised_item, indexer's amber for the ES row. The two rams
+   * share no crank, deliberately, because the two-store write is not
+   * transactional and nothing mechanical here should imply it is. A small
+   * red mark on its own is an item-not-found immediate reject — no retry
+   * attempted — distinct from the failure chute on the apron, which is
+   * every non-retryable write failure and dead-ends against a hazard cap:
+   * there is no DLT anywhere in this service, so there is nowhere for the
+   * chute to lead back to. */
+  function drawActioningService(o) {
+    var b = drawSideBase(o, 'actioning'), sf = b.sf, top = b.top, cs = b.cs;
+    var bayW = (o.w - 0.7) / 2;
+
+    ribs(o.x + 0.3, o.x + o.w - 0.3, sf, b.deck + 0.20, o.h - 1.5, 6);
+
+    [['mongo', '#c05070', o.x + 0.35], ['es', '#e0a840', o.x + 0.65 + bayW]]
+      .forEach(function (bay) {
+        var bx = bay[2] + bayW / 2, ramTop = top - 0.10;
+        var tone = Iso.mix(bay[1], cs.body, 0.35);
+        Iso.box(ctx, { x: bx - 0.10, y: o.y + o.d * 0.40, z: b.deck,
+                       w: 0.20, d: 0.20, h: ramTop - b.deck, color: cs.plinth });
+        Iso.box(ctx, { x: bx - 0.26, y: o.y + o.d * 0.34, z: ramTop,
+                       w: 0.52, d: 0.34, h: 0.18, color: tone });
+        plate(bay[2], sf, b.deck + 0.10, bayW, 0.46, tone);
+        stencil(bay[2] + 0.06, sf, b.deck + 0.60, bay[0], { size: 5.0 });
+      });
+
+    /* item-not-found immediate reject — no retry */
+    var rx = o.x + 0.3, ry = o.y + o.d + 0.3;
+    ctx.fillStyle = 'rgba(200,60,50,0.6)';
+    Iso.disc(ctx, rx, ry, 0.03, 0.10);
+    floorText(rx - 0.30, ry + 0.22, 0.03, ['not found'], { size: 3.4, color: 'rgba(220,120,100,0.5)' });
+
+    /* dead-end failure chute — no DLT anywhere in this service */
+    var fx = o.x + o.w - 0.55, fy = o.y + o.d + 0.35;
+    hazardStrip(fx - 0.22, fx + 0.22, fy, 0.20, 0.14, 0.14);
+  }
+
+  var BESPOKE_SIDE = {
+    config:          drawConfigCurator,
+    manualruns:      drawManualRuns,
+    reviewservice:   drawReviewService,
+    portal:          drawPortal,
+    externalapi:     drawExternalApi,
+    actioningservice:drawActioningService
+  };
 
   /* ---- Cognition external node -------------------------------------------- */
 
@@ -3692,6 +4112,7 @@
        painted over it. Everything else flat is paint ON the slab and goes
        after. */
     drawTrenches();
+    drawConfigFanout();
     drawBelt();
     drawDecals();          /* flat floor paint — must precede every solid */
     drawAuditPulses();     /* glowing receipt objects traveling through relay */
@@ -3905,7 +4326,7 @@
       } else if (o.kind === 'side') {
         /* side structs: o.x/o.y is the NW corner; use box centre for both */
         var scx = o.x + o.w / 2, scy = o.y + o.d / 2;
-        drawSideStruct(o);
+        (BESPOKE_SIDE[o.id] || drawSideStruct)(o);
         bub = P(scx, scy, o.h + ZL - 2);
         anc = P(scx, scy, o.h + 0.2);
         addLabel(bub.x, bub.y, o.label, o.sublabel,
