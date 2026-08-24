@@ -22,11 +22,14 @@ around them, because the platform's real product is not the alert — it is the
 ability to prove, months later and to a regulator, exactly what it did with every
 message it was given.
 
-All 21 Smarsh Enterprise Conduct repositories are on the floor: eight as belt
-machines, two off the belt inside its loop, eleven as side structures around it —
-the control room that freezes configuration, the reviewer portal and the
-actioning tier that closes each record's life, and the reporting corner that
-turns a month of this into a CSV.
+16 Smarsh Enterprise Conduct repositories are on the floor: eight as belt
+machines, two off the belt inside its loop, six as side structures around it —
+the control room that freezes configuration, and the reviewer portal and
+actioning tier that closes each record's life. Five more repositories exist in
+the real platform — a reporting-corner trio that reads the same audit trail
+the tower already shows, a library with no floor presence of its own, and one
+read-path detail too fine-grained for a structure — and are documented in
+`knowledge/system-explainer-input.md` without being drawn.
 
 No build step, no dependencies, no framework. Open `src/index.html`.
 
@@ -326,11 +329,9 @@ because the communication never travels to either of them:
 | `ec-centralised-audit` | Stitches every verdict into one record per communication and reconciles the count against the gateway's watermark. Seven of the eight belt machines send it a receipt; `ec-alerting-service` is the exception |
 | `ec-reporting` | Counts audit events into window-suffixed collections the monthly regulator report reads |
 
-The eleven side structures are on the same floor and carry the same write-ups:
-`ec-config-curator`, `ec-conduct-hithighlight-service`, `ec-manual-runs-service`,
-`ec-review-service`, `ea-ui-portal`, `ep-conduct-external-api`,
-`conduct-actioning-service`, `conduct-actioning` (a library, not a service),
-`ec-conduct-audit-service`, `conduct-reports` and `ec-compliance-report`.
+The six side structures are on the same floor and carry the same write-ups:
+`ec-config-curator`, `ec-manual-runs-service`, `ec-review-service`,
+`ea-ui-portal`, `ep-conduct-external-api` and `conduct-actioning-service`.
 
 ## The two loops worth following
 
@@ -340,8 +341,8 @@ document and `ec-indexer` creates the Elasticsearch review document; months
 later `conduct-actioning-service` mutates **both** when a reviewer dispositions
 the alert. That write is not transactional, so a failure between the two stores
 leaves an item closed in MongoDB and open in search — where it ages, forever,
-into higher buckets of the monthly compliance CSV, visible there and nowhere
-else. The reporting corner of the floor is where that shows up.
+into higher buckets of the monthly compliance CSV, a downstream report this
+floor does not depict.
 
 The other is quieter: `conduct-actioning` resolves its tier topic names from
 deployment properties at runtime, and a misconfigured property publishes a
@@ -372,26 +373,34 @@ knowledge/
   system-explainer-input.md   the source of truth: 21 repos, channels, flows
 src/
   index.html        markup, controls, the About modal with the fidelity ledger
-  css/styles.css    UI
+  css/styles.css    UI chrome (topbar, hud, zoomer, inspector, modal, tokens)
+  css/dock.css      the dock's own styles — see js/dock.js
+  js/dock.js        the dock as a reusable component, built from a spec
   js/iso.js         isometric projection and solid primitives — engine
   js/model.js       the lesson: chunking, lag, KEDA scaling, retries, latency
-  js/world.js       the belt, 10 machines, 11 side structures, props, write-ups
+  js/world.js       belt route, 8 belt stations, 6 side structures, props
   js/factory.js     floor palette, ground mosaic, hazard banding, slab
+  js/kit.js         the machine kit: materials, cam timing, primitives,
+                    instruments, sub-assemblies every station drawer uses
   js/sim.js         the state machine walking one communication along the belt
   js/render.js      everything drawn, canvas 2D, painter's algorithm
   js/ui.js          DOM panels, narration, sliders, HUD
   js/main.js        camera, input, frame loop — engine
 ```
 
-Script order in `src/index.html` matters: `iso → model → world → factory → sim →
-render → ui → main`.
+Script order in `src/index.html` matters: `iso → model → world → factory → kit
+→ dock → sim → render → ui → main`.
 
 `World.BELT` is the conveyor polyline; every machine in `World.STATIONS_FLAT`
 anchors to it by `BELT.cum[i]` distance, so moving a waypoint shifts every
-machine after it. The one fork in the whole floor is `applyGate()` in
-`src/js/sim.js` — on an unsampled verdict the carrier jumps to
-`ec-centralised-audit`, skipping
-alerting, echo and the indexer. That is deliberate: the reader should see the
+machine after it. Four forks in `src/js/sim.js` leave the line early — no
+pipeline claims it, nothing qualifies, every content verdict ages out, not
+sampled — and three of the four **end the journey where they happen** rather
+than travelling anywhere: the carrier simply stops at the machine that
+suppressed it. `ec-centralised-audit` and `ec-reporting` are not on the belt at
+all, because they consume events *about* the communication rather than the
+communication itself; they stand inside the loop the belt makes, fed by
+trenches cut under the floor. That is deliberate: the reader should see the
 saving as a shorter journey, not just a smaller number.
 
 One layout rule before moving anything: in this projection a structure at

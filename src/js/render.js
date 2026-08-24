@@ -3005,6 +3005,31 @@
   var RELAY_SPINE  = [0.90, 0.96];
   var RELAY_RISER  = [0.94, 1.00];
 
+  /* A small flat chevron laid on the trench floor, pointing from (x0,y0)
+     toward (x1,y1) — the direction data actually flows, not just the
+     direction the segment happens to be authored in (every trench array
+     on this floor is authored source-to-destination, so that is the same
+     thing). Placed at 1-2 points along a run depending on its length, so a
+     short spur still gets one and a long spine reads as a repeated cue
+     rather than a single easy-to-miss arrow. */
+  function flowArrows(x0, y0, x1, y1, color) {
+    var dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1;
+    var ax = dx / len, ay = dy / len, px = -ay, py = ax;
+    var n = len > 10 ? 2 : 1, i;
+    for (i = 1; i <= n; i++) {
+      var t = i / (n + 1);
+      var cx = x0 + dx * t, cy = y0 + dy * t;
+      var L = 0.30, W = 0.16;
+      var tip = P(cx + ax * L * 0.6, cy + ay * L * 0.6, -0.08);
+      var b0  = P(cx - ax * L * 0.4 + px * W, cy - ay * L * 0.4 + py * W, -0.08);
+      var b1  = P(cx - ax * L * 0.4 - px * W, cy - ay * L * 0.4 - py * W, -0.08);
+      ctx.fillStyle = color;
+      Iso.poly(ctx, [tip, b0, b1]);
+    }
+  }
+
+  var RELAY_ARROW = '#f0c840';
+
   function drawTrenches() {
     var runs = World.RELAY.trench, i, t, win;
     for (i = 0; i < runs.length; i++) {
@@ -3021,6 +3046,38 @@
         cap: !!r.riser,
         hazard: r.src.length > 1        /* mark the common runs, not every stub */
       });
+      /* every run here is authored source (machine) -> destination (audit),
+         so the arrow points the same way the data already reads: in, to
+         the tower */
+      flowArrows(r.x0, r.y0, r.x1, r.y1, RELAY_ARROW);
+    }
+  }
+
+  /* ---- config-curator's fan-out trunk --------------------------------------
+   * Nine data-plane services primed over REST, routed underground rather
+   * than as nine surface pipes crossing the belt or threading around the
+   * audit tower — same reasoning the relay network above already uses to
+   * cross the belt cleanly. Undecorated on purpose relative to the relay:
+   * no pulse (this is a positioning/routing pass, not a new animation),
+   * and a distinct kerb colour and arrow tint so a reader can tell the two
+   * underground networks apart at a glance — cool slate kerb and amber
+   * arrows here, against the relay's warm default kerb and yellow-gold
+   * arrows, and the arrows point the opposite way: out from config-curator,
+   * not in toward a tower. */
+  var FANOUT_KERB = '#5a6a80';
+  var FANOUT_ARROW = '#e0a840';
+
+  function drawConfigFanout() {
+    var runs = World.CONFIG_FANOUT.trench, i;
+    for (i = 0; i < runs.length; i++) {
+      var r = runs[i];
+      trench(r.x0, r.y0, r.x1, r.y1, {
+        kerbColor: FANOUT_KERB,
+        hazard: !!r.spine   /* mark the shared runs, not every stub, same rule the relay uses */
+      });
+      /* authored config-curator -> destination throughout, so the arrow
+         points the same way: out */
+      flowArrows(r.x0, r.y0, r.x1, r.y1, FANOUT_ARROW);
     }
   }
 
@@ -3058,6 +3115,84 @@
       if (dc.kind === 'bay')   drawBay(dc);
       if (dc.kind === 'topic') drawTopicLane(dc);
     });
+    drawClusterLinks();
+  }
+
+  /* ---- cluster wiring ------------------------------------------------------
+   * The six control/review/actioning structures' real call graph, laid on
+   * the slab as low pipe between structure centres — flat paint, drawn
+   * here so every structure (painted later, in the depth-sorted pass)
+   * covers the pipe's end where it meets a wall. None of these seven runs
+   * cross the belt: the column placement was chosen specifically so this
+   * stays a surface duct instead of needing a trench or an overhead tube,
+   * the way the audit relay does. World.CLUSTER_LINKS is the data;
+   * positions are looked up live via World.structCentre() so a future
+   * move keeps this correct without a second edit — except the one edge
+   * below that is routed by hand, because a straight line for it would
+   * run under two other casings. Colour carries the one distinction that
+   * matters here: config-curator's own edges are configuration riding on
+   * Kafka, not a request, so they run in a cooler, quieter tone than the
+   * REST/library traffic everything else on this graph is. */
+  var LINK_COLOR = '#9c8256';        // REST / library
+  var LINK_COLOR_CONTROL = '#6a84a0'; // Kafka-borne configuration
+
+  function linkColor(lk) { return lk.type === 'control' ? LINK_COLOR_CONTROL : LINK_COLOR; }
+
+  /* portal and actioning-service sit at opposite ends of the column, with
+     review-service and external-api between them — the one edge in the
+     4-cycle a straight stack can't make adjacent to both its endpoints (see
+     the placement comment on the cluster's SIDE_STRUCTS entries). Routed
+     through the clear gap east of the column, before ec-reporting's
+     footprint starts, rather than straight through the two casings between
+     them. */
+  var DOGLEG_X = 19, DOGLEG_Y = 30;
+
+  function drawClusterLinks() {
+    World.CLUSTER_LINKS.forEach(function (lk) {
+      var a = World.structCentre(lk.from), b = World.structCentre(lk.to);
+      if (!a || !b) return;
+      var isDogleg = (lk.from === 'portal' && lk.to === 'actioningservice') ||
+                     (lk.from === 'actioningservice' && lk.to === 'portal');
+      var col = linkColor(lk);
+      if (isDogleg) {
+        pipe(a.x, a.y, DOGLEG_X, DOGLEG_Y, 0.11, 0.10, col);
+        pipe(DOGLEG_X, DOGLEG_Y, b.x, b.y, 0.11, 0.10, col);
+        floorText(DOGLEG_X + 0.15, DOGLEG_Y, 0.03, [lk.mech],
+                  { size: 5.6, color: 'rgba(226,214,190,0.55)', dir: 'y' });
+        return;
+      }
+      pipe(a.x, a.y, b.x, b.y, 0.11, 0.10, col);
+      var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      var dx = b.x - a.x, dy = b.y - a.y;
+      floorText(mx, my, 0.03, [lk.mech], {
+        size: 5.6, color: 'rgba(226,214,190,0.55)',
+        dir: Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y'
+      });
+    });
+
+    /* the two edges the real graph never draws — marked, not just omitted,
+       so an absence reads as confirmed rather than as an oversight. The
+       direct line between either pair now runs through the two structures
+       standing between them in the column, so both markers sit in the same
+       clear east gap the dogleg above uses, at the y level partway between
+       each pair's own two members, rather than literally on the (now
+       occupied) line between them. */
+    var rv = World.structCentre('reviewservice'), ac = World.structCentre('actioningservice');
+    var po = World.structCentre('portal'), ex = World.structCentre('externalapi');
+    [[rv, ac, (rv.y + ac.y) / 2], [po, ex, (po.y + ex.y) / 2]].forEach(function (pr) {
+      if (!pr[0] || !pr[1]) return;
+      var mx = DOGLEG_X, my = pr[2];
+      var mp = P(mx, my, 0.03);
+      ctx.fillStyle = 'rgba(18,18,20,0.7)';
+      ctx.beginPath(); ctx.arc(mp.x, mp.y, 7, 0, 6.2832); ctx.fill();
+      ctx.strokeStyle = 'rgba(160,150,140,0.55)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(mp.x, mp.y, 7, 0, 6.2832); ctx.stroke();
+      ctx.fillStyle = 'rgba(210,200,190,0.75)';
+      ctx.font = '9px ui-monospace, Menlo, Consolas, monospace';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('✕', mp.x, mp.y + 0.5);
+    });
   }
 
   var PROP_KIND = {
@@ -3091,12 +3226,21 @@
 
   /* ---- side structure ----------------------------------------------------- */
 
-  /* The eleven off-belt repos. They are machinery too — plant standing away
+  /* The six off-belt repos. They are machinery too — plant standing away
      from the belt, not offices: a plinth, a panelled casing, a flat capped top
      with a vent stack and a louvre bank, and a standby lamp. (They carried a
      gable roof while this floor was still a city; a pitched roof is the one
-     shape that instantly reads as a building.) */
-  function drawSideStruct(o) {
+     shape that instantly reads as a building.) This is the shared fallback —
+     see BESPOKE_SIDE below for the per-service drawers replacing it. */
+  /* The shared shell every side structure is built from: plinth, panelled
+     casing, louvre bank, flat cap, vent stack, standby lamp, name stencil.
+     Returns the palette and the face/deck reference planes (sf, top) so a
+     bespoke drawer can add its own instruments in the same coordinate space
+     without recomputing them. Belt stations get no such shared function —
+     each is bespoke to the metal — but these six share one physical build
+     (a small plant casing) and differ only in what is mounted on the face,
+     which is what BESPOKE_SIDE below is for. */
+  function sideShell(o) {
     var sf = o.y + o.d + 0.01;
     var rows, cols, r, c, z0, z1, u0, u1;
 
@@ -3148,7 +3292,7 @@
     Iso.cylinder(ctx, { x: o.x + 0.80, y: o.y + o.d - 0.70, z: top,
                         r: 0.30, h: 0.26, color: cap, ring: 0.55 });
 
-    /* standby lamp — dim red at rest, pulsing green while this repo is live */
+    /* standby lamp — dim red at rest, pulsing green while under inspection */
     var lp = o.active ? (0.70 + 0.30 * Math.sin(clk * 5)) : 0.60;
     ctx.fillStyle = o.active
       ? 'rgba(90,210,80,' + lp.toFixed(2) + ')'
@@ -3158,7 +3302,283 @@
     /* short name on the face */
     var slug = (o.label || o.id || '').replace(/^ec-/, '').split('-').slice(0, 2).join('-');
     faceText(o.x + 0.28, sf, o.h - 0.30, [slug], { size: 6.0, color: 'rgba(16,14,10,0.55)' });
+
+    return { body: body, plinth: plinth, cap: cap, sf: sf, top: top };
   }
+
+  function drawSideStruct(o) { sideShell(o); }
+
+  /* ---- the six rebuilt side structures -------------------------------------
+   * Rebuilt from scratch to the same three-material discipline as the belt
+   * machines (casing(id): body/plinth/cap, from the LIVERY entries added for
+   * these six ids in kit.js) rather than the one shared sideShell() template
+   * plus bolted-on instruments the first pass used — which is exactly why
+   * that pass still read as city-era buildings rather than floor machinery.
+   * Sized up toward belt scale too (w8-9, d5-6.5, h3-3.5, against the belt's
+   * own w8.5-10.4, d5.2-7.6, h3-3.3), capped short of full parity only where
+   * the corridor genuinely doesn't have the room — config-curator and
+   * manual-runs share this stretch of floor with the four-machine column and
+   * neither pair fits at full belt width without the two columns colliding
+   * or the column encroaching on ec-reporting. None of the six get a busy()-
+   * gated work cycle: nothing here is ever fired by the simulation, so
+   * there is no cam to hang seg()/cyc() strokes off the way gateway's press
+   * has one. Detail comes from real facts in
+   * knowledge/system-explainer-input.md instead of a moving mechanism. */
+
+  function drawSideBase(o, id) {
+    var cs = casing(id);
+    var sf = o.y + o.d + 0.01, deck = 0.20, top = deck + o.h;
+    Iso.box(ctx, { x: o.x - 0.12, y: o.y - 0.12, z: 0, w: o.w + 0.24, d: o.d + 0.24,
+                   h: deck, color: cs.plinth });
+    Iso.box(ctx, { x: o.x, y: o.y, z: deck, w: o.w, d: o.d, h: o.h, color: cs.body });
+    Iso.box(ctx, { x: o.x - 0.10, y: o.y - 0.10, z: top, w: o.w + 0.20, d: o.d + 0.20,
+                   h: 0.14, color: cs.cap });
+    return { cs: cs, sf: sf, deck: deck, top: top };
+  }
+
+  /* ---- ec-config-curator: the freeze-gate control room -----------------
+   * A daily boundary, not a request path. Arriving changes during the
+   * freeze are PARKED, not dropped — held in a staging bin the reader can
+   * see is a bin, not a chute to nowhere — and replayed once the window
+   * reopens. The nine-lamp bank is the data-plane services primed in
+   * parallel; the single brass lock stands for ShedLock's single-flight
+   * cron — deliberately one fitting, not one per replica, since extra
+   * replicas here buy availability, not throughput. */
+  function drawConfigCurator(o) {
+    var b = drawSideBase(o, 'config'), sf = b.sf, top = b.top, cs = b.cs;
+
+    ribs(o.x + 0.3, o.x + o.w - 0.3, sf, b.deck + 0.20, o.h - 0.9, 6);
+    louvres(o.x + 0.3, sf, b.deck + 0.20, o.w * 0.28, o.h - 1.1, 4);
+
+    /* striped barrier arm on the apron — the freeze itself */
+    var az = o.h * 0.6;
+    Iso.cylinder(ctx, { x: o.x + 0.4, y: o.y + o.d + 0.55, z: b.deck, r: 0.08, h: az, color: cs.plinth });
+    hazardStrip(o.x + 0.4, o.x + o.w - 0.4, o.y + o.d + 0.55, b.deck + az, 0.12, 0.32);
+
+    /* nine-lamp priming bank */
+    matrix(o.x + 0.35, sf, b.deck + 0.20, 3, 3, 0.15, 9, 9, '#6adf72', 'rgba(106,223,114,0.34)');
+
+    /* staging bin on the deck — parked changes, held not dropped */
+    var bx = o.x + o.w - 1.5, by = o.y + o.d - 1.0;
+    Iso.box(ctx, { x: bx, y: by, z: top, w: 1.1, d: 0.8, h: 0.34, color: M.ironD, edge: 'rgba(0,0,0,0.4)' });
+    stencil(bx + 0.06, by + 0.82, top + 0.05, 'staged', { size: 4.4 });
+
+    /* the one ShedLock cylinder */
+    Iso.cylinder(ctx, { x: o.x + o.w - 0.5, y: o.y + 0.5, z: top, r: 0.15, h: 0.22, color: M.brass });
+    lamp(o.x + o.w - 0.5, o.y + 0.5, top + 0.24, 0.06, true, '#e0c060', 2.0);
+
+    stencil(o.x + 0.28, sf, b.deck + 0.10, 'FREEZE · STAGE · ROTATE', { size: 4.6 });
+  }
+
+  /* ---- ec-manual-runs-service: the remediation bench --------------------
+   * Athena is queried, not called — the readout is a query state. A
+   * compaction gate physically blocks the chunk lane until compaction
+   * finishes; twin dials are the "seam assertion" — Athena's own row count
+   * against the sum of the stitched chunks, a green light only when they
+   * agree. Four small clock faces are the four crons this service runs on
+   * four different intervals (15/5/60/30 min) rather than one. Its DLT is
+   * re-consumed, not terminal, so the reject chute here loops back into the
+   * intake rather than dead-ending. */
+  function drawManualRuns(o) {
+    var b = drawSideBase(o, 'manualruns'), sf = b.sf, top = b.top, cs = b.cs, i;
+
+    ribs(o.x + 0.3, o.x + o.w - 0.3, sf, b.deck + 0.20, o.h - 0.9, 6);
+
+    readout(o.x + 0.28, sf, o.h - 0.70, 1.7, 0.36, ['ATHENA', 'SUCCEEDED'], { size: 5.6, color: '#e0b840' });
+
+    /* compaction gate — nothing moves through until this is open */
+    var gx = o.x + o.w - 1.15;
+    door(gx, sf, b.deck + 0.20, 0.5, o.h - 0.5, cs.plinth);
+    lamp(gx + 0.25, sf, o.h - 0.24, 0.06, true, '#7ad080', 1.6);
+
+    /* byte-range chunk lamps */
+    matrix(o.x + 0.35, sf, b.deck + 0.16, 5, 1, 0.14, 5, 5, '#e0b840', 'rgba(224,184,64,0.34)');
+
+    /* seam-assertion twin dials on the deck */
+    Iso.cylinder(ctx, { x: o.x + o.w * 0.32, y: o.y + 0.4, z: top, r: 0.16, h: 0.09, color: M.steel });
+    Iso.cylinder(ctx, { x: o.x + o.w * 0.52, y: o.y + 0.4, z: top, r: 0.16, h: 0.09, color: M.steel });
+    ctx.fillStyle = 'rgba(120,220,140,0.85)';
+    Iso.disc(ctx, o.x + o.w * 0.42, o.y + 0.4, top + 0.12, 0.07);
+
+    /* four cron clock faces — 15 / 5 / 60 / 30 minutes */
+    for (i = 0; i < 4; i++) {
+      Iso.cylinder(ctx, { x: o.x + o.w - 0.5, y: o.y + 0.5 + i * 0.42, z: top,
+                          r: 0.10, h: 0.05, color: M.iron });
+    }
+
+    /* DLT loop-back — re-consumed, not a dead end */
+    var lx = o.x + 0.4, ly = o.y + o.d + 0.4;
+    pipe(lx, ly, lx, o.y + o.d, 0.05, 0.09, '#6a8e6a');
+    stencil(o.x + 0.28, sf, b.deck + 0.10, 'rejoin → gateway / filter', { size: 4.2 });
+  }
+
+  /* ---- ec-review-service: the alcatraz registry --------------------------
+   * No surveillance logic, no mutation — a lookup, so the standout part is
+   * a vault door, not a press: the backing store is a MongoDB database
+   * literally named alcatraz. Pipeline sync is a wholesale replace, not a
+   * merge, which is worth a warning stencil rather than a hidden risk. A
+   * rotary index drum on the deck turns slowly and continuously — the one
+   * deliberate departure from busy()-gated motion on this floor, standing
+   * for "always available to query" since a lookup has no fire event to
+   * hang a work cycle off. Two hatches are the two callers this service
+   * ever hears from; a third, unlabelled red mark is the fast fail a
+   * malformed CDC payload takes straight to its own DLT, no retry. */
+  function drawReviewService(o) {
+    var b = drawSideBase(o, 'review'), sf = b.sf, top = b.top, cs = b.cs, i;
+
+    /* vault door — barred, centred */
+    var dw = Math.min(1.1, o.w * 0.32), dx = o.x + o.w / 2 - dw / 2;
+    plate(dx, sf, b.deck + 0.16, dw, o.h - 0.5, M.ironD);
+    for (i = 0; i < 5; i++) plate(dx + 0.08 + i * (dw - 0.16) / 4, sf, b.deck + 0.22, 0.04, o.h - 0.62, M.steel);
+    stencil(dx + 0.02, sf, o.h - 0.16, 'alcatraz', { size: 4.6, color: 'rgba(220,222,226,0.55)' });
+
+    /* rotary index drum, ambient turn */
+    var cx = o.x + o.w / 2, cy = o.y + o.d / 2, dr = Math.min(o.w, o.d) * 0.28, dh = 0.26;
+    Iso.cylinder(ctx, { x: cx, y: cy, z: top, r: dr, h: dh, color: cs.cap });
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1;
+    var slots = 10, spin = clk * 0.15, a, p0, p1;
+    for (i = 0; i < slots; i++) {
+      a = spin + i / slots * 6.2832;
+      p0 = P(cx + Math.cos(a) * dr, cy + Math.sin(a) * dr, top);
+      p1 = P(cx + Math.cos(a) * dr, cy + Math.sin(a) * dr, top + dh);
+      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+    }
+
+    /* two query hatches: portal, external-api */
+    door(o.x + 0.26, sf, b.deck + 0.16, 0.30, o.h - 0.6, cs.plinth);
+    lamp(o.x + 0.41, sf, o.h - 0.18, 0.06, true, '#7ad0e0', 3.1);
+    door(o.x + o.w - 0.56, sf, b.deck + 0.16, 0.30, o.h - 0.6, cs.plinth);
+    lamp(o.x + o.w - 0.41, sf, o.h - 0.18, 0.06, true, '#7ad0e0', 2.4);
+
+    /* replace-not-merge warning, and the fast-fail mark for malformed CDC */
+    stencil(o.x + 0.26, sf, b.deck + 0.08, 'CDC: REPLACE not merge', { size: 4.0, color: 'rgba(224,120,100,0.55)' });
+    ctx.fillStyle = 'rgba(200,60,50,0.7)';
+    Iso.disc(ctx, o.x + o.w - 0.35, o.y + o.d + 0.3, 0.03, 0.09);
+  }
+
+  /* ---- ea-ui-portal: the dispatch desk ------------------------------------
+   * The one side structure with a screen a person actually reads, so it
+   * gets a hooded readout instead of a bare plate. It produces only —
+   * there is no @KafkaListener anywhere in this service, it never
+   * consumes — which is why nothing feeds in from the apron the way it
+   * does at every other machine on this floor. The four-chute sorter is
+   * the small/medium/large/bulk tier a disposition is dispatched into. */
+  function drawPortal(o) {
+    var b = drawSideBase(o, 'portal'), sf = b.sf, top = b.top, cs = b.cs, i;
+
+    ribs(o.x + 0.3, o.x + o.w - 0.3, sf, b.deck + 0.20, o.h - 1.3, 5);
+
+    /* hood over the screen */
+    Iso.box(ctx, { x: o.x + 0.20, y: o.y - 0.14, z: top - 0.90, w: o.w - 0.40, d: 0.16, h: 0.18, color: cs.plinth });
+    readout(o.x + 0.28, sf, o.h - 0.82, o.w - 1.7, 0.46,
+            ['QUEUE: 12 alerted', 'phrase match: 3'], { size: 5.8, color: '#8fe0c0' });
+
+    /* four-chute dispatch sorter at the apron */
+    var tiers = [['S', '#8d949c'], ['M', '#7aa8d0'], ['L', '#c9a233'], ['BULK', '#c05040']];
+    var cw = (o.w - 0.6) / 4;
+    for (i = 0; i < 4; i++) {
+      var tx = o.x + 0.3 + i * cw;
+      Iso.box(ctx, { x: tx, y: o.y + o.d, z: 0, w: cw - 0.10, d: 0.5, h: 0.10, color: tiers[i][1] });
+      floorText(tx + (cw - 0.10) / 2 - 0.06, o.y + o.d + 0.56, 0.03, [tiers[i][0]],
+                { size: 4.2, color: 'rgba(255,255,255,0.55)' });
+    }
+
+    stencil(o.x + 0.26, sf, b.deck + 0.08, 'produces only — no Kafka listener',
+            { size: 3.8, color: 'rgba(200,214,232,0.4)' });
+  }
+
+  /* ---- ep-conduct-external-api: the checkpoint ----------------------------
+   * Every call is audited before it is even routed — a servlet filter of
+   * the highest precedence — so the audit stamp sits at the very entrance,
+   * ahead of the badge post and the turnstile it walks through next. Two
+   * intake pipes are the two Mongo connections this service holds open,
+   * shared and site — a site-Mongo outage can break tenant-scoped reads
+   * while shared reads keep working, which is why they are drawn as two
+   * separate runs rather than one. The gauge is the addToQueue circuit
+   * breaker: request count plus current queue depth against capacity,
+   * with a relief valve rather than a silent overflow. The ticket
+   * dispenser is the one thing that isn't a pure forward: a bulk action
+   * hands back a jobId immediately and the caller polls for it. */
+  function drawExternalApi(o) {
+    var b = drawSideBase(o, 'externalapi'), sf = b.sf, top = b.top, cs = b.cs;
+
+    ribs(o.x + 0.3, o.x + o.w - 0.3, sf, b.deck + 0.20, o.h - 0.9, 5);
+
+    /* audit stamp at the entrance — first thing that happens */
+    var ax = o.x + o.w / 2, ay = o.y + o.d + 0.95;
+    Iso.box(ctx, { x: ax - 0.18, y: ay - 0.14, z: 0, w: 0.36, d: 0.28, h: 0.30, color: M.ironD });
+    stencil(ax - 0.24, ay + 0.34, 0.05, 'AUDIT', { size: 3.8, color: 'rgba(230,200,120,0.6)' });
+
+    /* badge/OAuth checkpoint post, then the turnstile */
+    var px = o.x + o.w / 2, py = o.y + o.d + 0.55;
+    Iso.cylinder(ctx, { x: px, y: py, z: 0, r: 0.09, h: 0.55, color: cs.plinth });
+    lamp(px, py, 0.60, 0.08, true, '#e0c060', 4.2);
+    door(o.x + o.w / 2 - 0.22, sf, b.deck + 0.16, 0.44, o.h - 0.6, cs.plinth);
+
+    /* two Mongo intakes: shared, site */
+    pipe(o.x - 0.5, o.y + 0.6, o.x, o.y + 0.6, b.deck + 0.1, 0.10, '#5a9060');
+    pipe(o.x - 0.5, o.y + 1.3, o.x, o.y + 1.3, b.deck + 0.1, 0.10, '#8a6a30');
+
+    /* pressure gauge + relief valve — the queue-capacity circuit breaker */
+    var gx = o.x + o.w - 0.6, gy = o.y + 0.5;
+    Iso.cylinder(ctx, { x: gx, y: gy, z: top, r: 0.16, h: 0.08, color: M.steel });
+    var gp = P(gx, gy, top + 0.09);
+    ctx.strokeStyle = 'rgba(200,60,50,0.85)'; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(gp.x, gp.y, 6, 0, 4.6); ctx.stroke();
+
+    /* ticket dispenser for the async bulk-action poll */
+    readout(o.x + o.w - 1.65, sf, o.h - 0.64, 1.35, 0.30, ['NOW SERVING 214'], { size: 5.0, color: '#e0a860' });
+  }
+
+  /* ---- conduct-actioning-service: twin independent presses ----------------
+   * The only service on this floor that mutates a record another service
+   * created, so it doesn't stamp a blank card — it re-stamps two already-
+   * filed ones, in the two colours the read side already uses: alerting's
+   * rose for supervised_item, indexer's amber for the ES row. The two rams
+   * share no crank, deliberately, because the two-store write is not
+   * transactional and nothing mechanical here should imply it is. A small
+   * red mark on its own is an item-not-found immediate reject — no retry
+   * attempted — distinct from the failure chute on the apron, which is
+   * every non-retryable write failure and dead-ends against a hazard cap:
+   * there is no DLT anywhere in this service, so there is nowhere for the
+   * chute to lead back to. */
+  function drawActioningService(o) {
+    var b = drawSideBase(o, 'actioning'), sf = b.sf, top = b.top, cs = b.cs;
+    var bayW = (o.w - 0.7) / 2;
+
+    ribs(o.x + 0.3, o.x + o.w - 0.3, sf, b.deck + 0.20, o.h - 1.5, 6);
+
+    [['mongo', '#c05070', o.x + 0.35], ['es', '#e0a840', o.x + 0.65 + bayW]]
+      .forEach(function (bay) {
+        var bx = bay[2] + bayW / 2, ramTop = top - 0.10;
+        var tone = Iso.mix(bay[1], cs.body, 0.35);
+        Iso.box(ctx, { x: bx - 0.10, y: o.y + o.d * 0.40, z: b.deck,
+                       w: 0.20, d: 0.20, h: ramTop - b.deck, color: cs.plinth });
+        Iso.box(ctx, { x: bx - 0.26, y: o.y + o.d * 0.34, z: ramTop,
+                       w: 0.52, d: 0.34, h: 0.18, color: tone });
+        plate(bay[2], sf, b.deck + 0.10, bayW, 0.46, tone);
+        stencil(bay[2] + 0.06, sf, b.deck + 0.60, bay[0], { size: 5.0 });
+      });
+
+    /* item-not-found immediate reject — no retry */
+    var rx = o.x + 0.3, ry = o.y + o.d + 0.3;
+    ctx.fillStyle = 'rgba(200,60,50,0.6)';
+    Iso.disc(ctx, rx, ry, 0.03, 0.10);
+    floorText(rx - 0.30, ry + 0.22, 0.03, ['not found'], { size: 3.4, color: 'rgba(220,120,100,0.5)' });
+
+    /* dead-end failure chute — no DLT anywhere in this service */
+    var fx = o.x + o.w - 0.55, fy = o.y + o.d + 0.35;
+    hazardStrip(fx - 0.22, fx + 0.22, fy, 0.20, 0.14, 0.14);
+  }
+
+  var BESPOKE_SIDE = {
+    config:          drawConfigCurator,
+    manualruns:      drawManualRuns,
+    reviewservice:   drawReviewService,
+    portal:          drawPortal,
+    externalapi:     drawExternalApi,
+    actioningservice:drawActioningService
+  };
 
   /* ---- Cognition external node -------------------------------------------- */
 
@@ -3239,14 +3659,25 @@
    * The analogue here runs the other way: a communication does not grow, it
    * SHEDS. ec-gateway strips the message body, so the payload block loses most
    * of its mass at station one, and everything after that is verdicts, stamps
-   * and receipts attaching to a much smaller object.
+   * and shape changes attaching to a much smaller object.
    *
-   * Every part is keyed off state.charged, which records the stations this trip
-   * has actually fired — so on the short route (not sampled) the alert crates
-   * and the index chip never appear, and you can see that they didn't.
+   * Copied from rocket-engine's drawEngine(): state.level is an integer set the
+   * instant a station fires (see charge() in sim.js), and drawCarrier() draws
+   * cumulatively — every level a station has passed keeps drawing, so nothing
+   * a station has done is erased by a later one. The dwell that follows a
+   * station firing is reading time, not animation time; there is no lerp here
+   * on purpose, the object pops to its new state and holds it.
+   *
+   * The route forks, which a plain level comparison cannot express on its own
+   * — the short route skips alerting, echo and the indexer entirely. Those
+   * three parts are gated on state.charged (the stations this trip actually
+   * fired), not on level, so on a not-sampled run they are visibly absent.
    * ---------------------------------------------------------------------- */
 
-  /* Place a part in carrier-local space: u runs along the heading, v across. */
+  /* Place a part in carrier-local space: u runs along the heading, v across.
+     Every part on the carrier goes through this — never Iso.box, which is
+     axis-aligned and would sit square to the world while the skid turns
+     under it. */
   function carrierPart(f, u, v, z, len, wid, h, color, edge) {
     Iso.orientedBox(ctx, {
       x: f.x + f.hx * u - f.hy * v,
@@ -3259,187 +3690,133 @@
   function cpx(f, u, v) { return f.x + f.hx * u - f.hy * v; }
   function cpy(f, u, v) { return f.y + f.hy * u + f.hx * v; }
 
+  /* The halo's tint: the colour of whichever machine currently has the
+     carrier, so the ping reads as "this machine has it now" rather than a
+     generic marker. Neutral belt amber while nothing is holding it. */
+  function carrierHaloColor(s) {
+    if (s.dwellLeft > 0 && s.station) {
+      var idx = World.STATION_IDX_BY_ID[s.station];
+      if (idx != null) return World.STATIONS_FLAT[idx].color;
+    }
+    return Factory.C.hazardAmber;
+  }
+
+  var LEVEL = Sim.LEVEL;
+
   function drawCarrier(vanPos, s) {
-    /* PACKAGE TRANSFORMATION AND RENDERING
-
-       This function is called every frame to render the communication package
-       traveling on the belt. It currently shows the package with different
-       parts appearing/disappearing as charge() sets state fields for each
-       station (done.gateway, done.qualifier, etc.).
-
-       PHASE 2/3 ENHANCEMENT:
-
-       The package should visually TRANSFORM during each dwell (reading stop).
-       Instead of instant appearance/disappearance, parts should:
-
-         1. Compress/compact/shrink (gateway: payload reduced by 60%)
-         2. Gain markers and tags (qualifier: pipeline tags grow)
-         3. Darken/change appearance (policies applied)
-         4. Seal/lock (indicate sampled/indexed state)
-         5. Fork visually if terminal gate taken (divert path at machine)
-
-       Timing: Use Sim.state.dwellLeft / Sim.state.dwellTotal to lerp between
-       states during the dwell. When dwellLeft = 0 (dwell expired), show the
-       fully transformed package.
-
-       Current state markers (s.charged) indicate which stations have fired.
-       New state marker (s.packageState) will indicate which transformation
-       stage the package is in: RAW → INGESTED → QUALIFIED → EVALUATED →
-       SURVEILLED → SAMPLED → ALERTED → ECHO_EVALUATED → INDEXED → TERMINATED.
-
-       The package's size, color, and parts should evolve as it moves through
-       these stages, creating the visual narrative that "the communication loses
-       mass and gains verdicts" as it travels through the surveillance system.
-    */
     if (!s.running && !s.finished) return;
 
-    /* Transform the heading vector through isometric projection.
-       vanPos.dx/dy are in world space; we need them in isometric space
-       to match the belt's visual orientation. The projection matrix is:
-       x_iso = (x - y) * TW, y_iso = (x + y) * TH.
-       For a heading vector, apply the same transform (without translation). */
-    var TW = 30, TH = 15;  /* match iso.js constants */
-    var dx_iso = (vanPos.dx - vanPos.dy) * TW;
-    var dy_iso = (vanPos.dx + vanPos.dy) * TH;
-    var m = Math.hypot(dx_iso, dy_iso) || 1;
-    var f = { x: vanPos.x, y: vanPos.y,
-              hx: dx_iso / m, hy: dy_iso / m };
+    /* The raw world-space heading — not a screen-space one. orientedBox()
+       builds its footprint in world grid space from hx/hy and only then
+       projects, so feeding it anything already run through the iso matrix
+       rotates the box in the world before the world is projected, and every
+       part on the carrier ends up skewed off the belt. smoothAt() already
+       returns a normalised world dx/dy that swings through corners instead
+       of snapping at them; nothing further is needed. */
+    var f = { x: vanPos.x, y: vanPos.y, hx: vanPos.dx || 1, hy: vanPos.dy || 0 };
     var done = s.charged || {};
+    var L = s.level;
     var i;
 
-    /* Helper functions for interpolation during dwell. */
-    function lerp(a, b, t) { return a + (b - a) * t; }
-    function lerpColor(c1, c2, t) {
-      var r1 = parseInt(c1.slice(1, 3), 16), g1 = parseInt(c1.slice(3, 5), 16), b1 = parseInt(c1.slice(5, 7), 16);
-      var r2 = parseInt(c2.slice(1, 3), 16), g2 = parseInt(c2.slice(3, 5), 16), b2 = parseInt(c2.slice(5, 7), 16);
-      var r = Math.round(lerp(r1, r2, t)), g = Math.round(lerp(g1, g2, t)), b = Math.round(lerp(b1, b2, t));
-      return '#' + ('0' + r.toString(16)).slice(-2) + ('0' + g.toString(16)).slice(-2) + ('0' + b.toString(16)).slice(-2);
-    }
-
-    /* The belt now stands off the slab, so everything on the carrier is lifted
+    /* The belt stands off the slab, so everything on the carrier is lifted
        by that height — otherwise the skid sinks into the deck it rides on. */
     var BZ = (Factory.BELT_H != null) ? Factory.BELT_H : 0;
 
-    /* ---- PULSATING HALO RING around the carrier ----
-       A glowing ring that animates with the carrier's position, providing
-       visual depth and drawing attention to the moving package. */
-    var haloPhase = Math.sin(clk * 3.2) * 0.25;  /* pulse ±0.25 amplitude */
-    var baseHaloR = 1.35;
-    var haloR = baseHaloR + haloPhase;
-    var haloPos = Iso.project(vanPos.x, vanPos.y, BZ + 0.15);
+    /* ---- ground-plane ping, tracking the carrier -----
+       Ported from rocket-engine's drawZones() active-station ring
+       (js/render.js:205-214), relocated to follow the carrier instead of
+       marking a fixed station — the timing, growth and fade are reproduced
+       exactly, only the position source changed. Emitted first, as a ground
+       decal, so the skid paints over it: the carrier is one item in the
+       floor's depth-sorted pass (see FLOOR-TOPOLOGY.md), and the halo has to
+       stay inside that one item rather than become a second sortable one. */
+    var haloColor = carrierHaloColor(s);
+    var hp = Iso.project(vanPos.x, vanPos.y, BZ + 0.02);
+    var haloR = 1.3;   // clears the 2.10×1.46 skid without swallowing it
 
-    /* Outer halo glow (very faint) */
-    ctx.strokeStyle = 'rgba(200, 180, 100, 0.12)';
-    ctx.lineWidth = 4;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.arc(haloPos.x, haloPos.y, haloR * 1.2 * TW * 1.414, 0, 6.2832);
-    ctx.stroke();
-
-    /* Mid-tone halo (pulsing brightness) */
-    ctx.strokeStyle = 'rgba(200, 180, 100, ' + (0.20 + 0.15 * Math.sin(clk * 3.2)).toFixed(2) + ')';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(haloPos.x, haloPos.y, haloR * TW * 1.414, 0, 6.2832);
-    ctx.stroke();
-
-    /* Inner accent ring (sharper) */
-    ctx.strokeStyle = 'rgba(200, 180, 100, ' + (0.35 + 0.2 * Math.sin(clk * 3.2 + 1)).toFixed(2) + ')';
+    ctx.fillStyle = Iso.rgba(haloColor, 0.10);
+    Iso.disc(ctx, vanPos.x, vanPos.y, BZ + 0.02, haloR);
+    ctx.strokeStyle = Iso.rgba(haloColor, 0.55);
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.arc(haloPos.x, haloPos.y, haloR * 0.8 * TW * 1.414, 0, 6.2832);
+    ctx.ellipse(hp.x, hp.y, haloR * Iso.TW * 1.414, haloR * Iso.TH * 1.414, 0, 0, 6.2832);
     ctx.stroke();
 
-    /* PACKAGE TRANSFORMATION STATE & TIMING
-       packageState: which stage we're in (RAW, INGESTED, QUALIFIED, etc.)
-       packageT: progress 0→1 through the current transformation
-       Used to interpolate geometry and color during dwell. */
-    var pState = s.packageState || 'RAW';
-    var pT = s.packageT || 0;
+    var ringPhase = (clk * 0.6) % 1;   // sawtooth: born bright, dies at full extent
+    ctx.strokeStyle = Iso.rgba(haloColor, 0.45 * (1 - ringPhase));
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(hp.x, hp.y,
+                haloR * Iso.TW * 1.414 * (1 + ringPhase * 0.35),
+                haloR * Iso.TH * 1.414 * (1 + ringPhase * 0.35), 0, 0, 6.2832);
+    ctx.stroke();
 
     /* skid and deck */
     carrierPart(f, 0, 0, BZ + 0.06, 2.10, 1.46, 0.14, '#151922', false);
     carrierPart(f, 0, 0, BZ + 0.20, 1.94, 1.30, 0.10, '#2c3446', false);
 
-    /* ---- the payload ----
-       Transforms from RAW (full document, 1.52×1.10×0.80, warm) to INGESTED
-       (stripped, 0.66×0.56×0.36, cool) during gateway dwell.
-
-       Interpolation during dwell: pState='INGESTED' and pT goes 0→1.
-       After gateway fires: pState will be INGESTED or beyond, pT=1 (fully transformed).
-    */
-    var payloadRaw = { u: 0, len: 1.52, wid: 1.10, h: 0.80, color: '#c9c2ae' };
-    var payloadIngested = { u: -0.48, len: 0.66, wid: 0.56, h: 0.36, color: '#78839a' };
-    var payloadState = payloadRaw;
-    if (pState !== 'RAW') {
-      /* Lerp if transitioning to INGESTED; use INGESTED if beyond it. */
-      if (pState === 'INGESTED') {
-        payloadState = {
-          u: lerp(payloadRaw.u, payloadIngested.u, pT),
-          len: lerp(payloadRaw.len, payloadIngested.len, pT),
-          wid: lerp(payloadRaw.wid, payloadIngested.wid, pT),
-          h: lerp(payloadRaw.h, payloadIngested.h, pT),
-          color: lerpColor(payloadRaw.color, payloadIngested.color, pT)
-        };
-      } else {
-        payloadState = payloadIngested;
-      }
+    if (!L) {
+      /* nothing has fired yet: the payload sits exactly as it arrived */
+      carrierPart(f, 0, 0, BZ + 0.30, 1.52, 1.10, 0.80, '#c9c2ae', 'rgba(0,0,0,0.35)');
+      return;
     }
-    carrierPart(f, payloadState.u, 0, BZ + 0.30,
-      payloadState.len, payloadState.wid, payloadState.h,
-      payloadState.color, 'rgba(0,0,0,0.35)');
 
-    /* ---- pipeline tags: one upright plate per matched pipeline ----
-       Appear at QUALIFIED (0.24 high, grey) and grow to EVALUATED (0.44 high, amber)
-       during filter dwell.
+    /* ---- ec-gateway: SUBTRACTION -----
+       The station strips the message body, so the payload loses most of its
+       mass here — the one part of the carrier that shrinks rather than
+       accretes. Everything below attaches to this smaller object. */
+    var payload = (L >= LEVEL.gateway)
+      ? { u: -0.48, len: 0.66, wid: 0.56, h: 0.36, color: '#78839a' }
+      : { u: 0,     len: 1.52, wid: 1.10, h: 0.80, color: '#c9c2ae' };
+    carrierPart(f, payload.u, 0, BZ + 0.30, payload.len, payload.wid, payload.h,
+                payload.color, 'rgba(0,0,0,0.35)');
 
-       Interpolation: pState='QUALIFIED' or 'EVALUATED' renders them; lerp when
-       pState='EVALUATED' and pT is between 0–1.
-    */
-    if (pState !== 'RAW' && pState !== 'INGESTED') {
+    /* ---- ec-queue-qualifier: ADDITION -----
+       One upright tag plate per matched pipeline — new geometry that stays. */
+    if (L >= LEVEL.qualifier) {
       var pipes = Math.min(4, s.pipelineCount || 2);
-      var tagQualified = { h: 0.24, color: '#485266' };
-      var tagEvaluated = { h: 0.44, color: '#e0b840' };
-      var tagState = tagQualified;
-      if (pState !== 'QUALIFIED') {
-        /* Lerp if transitioning to EVALUATED; use EVALUATED if beyond it. */
-        if (pState === 'EVALUATED') {
-          tagState = {
-            h: lerp(tagQualified.h, tagEvaluated.h, pT),
-            color: lerpColor(tagQualified.color, tagEvaluated.color, pT)
-          };
-        } else {
-          tagState = tagEvaluated;
-        }
+      /* ---- ec-surveillance-filter: STATE CHANGE -----
+         Policy verdicts land on these same tags — grey to amber — with no
+         change to their size. Silhouette unchanged, finish changed. */
+      var tagColor = (L >= LEVEL.filter) ? '#e0b840' : '#485266';
+      /* ---- ec-surveillance-policy-evaluator: SHAPE CHANGE -----
+         The same tags re-form around the metadata/content split: still
+         answerable locally, they stay short and flat; sent out to Cognition,
+         they stretch taller and thinner — the same matter, differently
+         shaped, not a new part. */
+      var tagH = 0.24, tagW = 0.18;
+      if (L >= LEVEL.evaluator) {
+        if ((s.sentToCognition || 0) > 0) { tagH = 0.52; tagW = 0.10; }
+        else                              { tagH = 0.20; tagW = 0.24; }
       }
       for (i = 0; i < pipes; i++) {
-        carrierPart(f, 0.30, -0.39 + i * 0.26, BZ + 0.30,
-                    0.14, 0.18, tagState.h, tagState.color, false);
+        carrierPart(f, 0.30, -0.39 + i * 0.26, BZ + 0.30, 0.14, tagW, tagH, tagColor, false);
+      }
+      /* Cognition pending: only while the evaluator itself holds the carrier
+         — once it has moved on the wait is already resolved in the plan, so
+         the antenna would be reporting a wait that is no longer happening. */
+      if (L === LEVEL.evaluator && (s.sentToCognition || 0) > 0) {
+        var ax = cpx(f, 0.74, 0), ay = cpy(f, 0.74, 0);
+        Iso.cylinder(ctx, { x: ax, y: ay, z: BZ + 0.30, r: 0.05, h: 0.52,
+                            color: '#1e5048', edge: false });
+        ctx.fillStyle = (Math.sin(clk * 5) > 0) ? '#7ce0d0' : '#20443e';
+        Iso.disc(ctx, ax, ay, BZ + 0.86, 0.11);
       }
     }
 
-    /* ---- Cognition pending: content policies are still out for evaluation --- */
-    if (pState !== 'RAW' && pState !== 'INGESTED' && pState !== 'QUALIFIED' &&
-        (s.sentToCognition || 0) > 0) {
-      var ax = cpx(f, 0.74, 0), ay = cpy(f, 0.74, 0);
-      Iso.cylinder(ctx, { x: ax, y: ay, z: BZ + 0.30, r: 0.05, h: 0.52,
-                          color: '#1e5048', edge: false });
-      ctx.fillStyle = (Math.sin(clk * 5) > 0) ? '#7ce0d0' : '#20443e';
-      Iso.disc(ctx, ax, ay, BZ + 0.86, 0.11);
-    }
-
-    /* ---- the sampling stamp: green if a human will read this, red if not ---
-       Appears at SAMPLED state and beyond. */
-    if (pState === 'SAMPLED' || pState === 'ALERTED' || pState === 'ECHO_EVALUATED' ||
-        pState === 'INDEXED' || pState === 'TERMINATED') {
+    /* ---- ec-surveillance-quota-manager: STATE CHANGE -----
+       The sampling verdict is a flat stamp — green if a human will read this,
+       red if not — with no volume of its own. Silhouette unchanged again. */
+    if (L >= LEVEL.quota) {
       ctx.fillStyle = s.sampled ? '#4ad066' : '#c04040';
       Iso.disc(ctx, cpx(f, -0.02, 0.50), cpy(f, -0.02, 0.50), BZ + 0.32, 0.17);
     }
 
-    /* ---- alert crates: one per sampled pipeline ----
-       Appear at ALERTED state and beyond. */
-    if (pState === 'ALERTED' || pState === 'ECHO_EVALUATED' ||
-        pState === 'INDEXED' || pState === 'TERMINATED') {
+    /* ---- ec-alerting-service: ADDITION -----
+       One crate per alert. Gated on charged.alerting, not level: a
+       not-sampled run never reaches this station, and the absence of crates
+       is the information. */
+    if (done.alerting) {
       var made = Math.min(3, s.alertsCreated || 0);
       for (i = 0; i < made; i++) {
         carrierPart(f, -0.06 + i * 0.32, 0.36, BZ + 0.40, 0.28, 0.28, 0.26,
@@ -3447,24 +3824,18 @@
       }
     }
 
-    /* ---- echo verdict: new, or a repeat of something already raised ----
-       Appears at ECHO_EVALUATED state and beyond. */
-    if (pState === 'ECHO_EVALUATED' || pState === 'INDEXED' || pState === 'TERMINATED') {
+    /* ---- ec-echo-engine: ADDITION -----
+       A verdict badge — new, or a repeat of something already raised. */
+    if (done.echo) {
       ctx.fillStyle = s.isEcho ? '#ff7060' : '#a870d8';
       Iso.disc(ctx, cpx(f, -0.58, -0.42), cpy(f, -0.58, -0.42), BZ + 0.42, 0.13);
     }
 
-    /* ---- index chip ----
-       Appears at INDEXED state and beyond. */
-    if (pState === 'INDEXED' || pState === 'TERMINATED') {
+    /* ---- ec-indexer: ADDITION -----
+       The index chip — the last mark a communication that reaches the end
+       of the line picks up. */
+    if (done.indexer) {
       carrierPart(f, -0.30, -0.40, BZ + 0.40, 0.32, 0.22, 0.13, '#e09040', false);
-    }
-
-    /* ---- audit receipts, stacked ---- */
-    var receipts = (done.audit ? 1 : 0) + (done.reporting ? 1 : 0);
-    for (i = 0; i < receipts; i++) {
-      carrierPart(f, 0.58, 0.28, BZ + 0.40 + i * 0.10, 0.42, 0.34, 0.09,
-                  i ? '#b0704c' : '#9a5038', false);
     }
 
     /* ---- latency gauge along the near side of the deck ----
@@ -3482,59 +3853,26 @@
                  gx0 + (gx1 - gx0) * frac, gy0 + (gy1 - gy0) * frac, 0.14, BZ + 0.33);
     }
 
-    /* ---- Terminal fork diversion chutes ----
-       When packageState === TERMINATED, draw a chute extending from the machine
-       and animate the package diverting into it. */
-    if (pState === 'TERMINATED' && s.terminalFork) {
-      var chuteSrc = s.station;
-      var chuteDir = null;  // offset direction perpendicular to belt heading
+    /* ---- terminal fork: stopped and closed out, not mid-journey -----
+       A fork leaves the carrier exactly where it was stopped — it does not
+       travel on — so there is nothing to animate: a static diversion chute
+       and a closed-out marker, both in the oriented frame from Part 1. No
+       Iso.box, no slip animation; the fork is a fact, not a transition. */
+    if (s.terminalFork) {
+      var chuteU = -0.6, chuteV = 0.5;   // southwest, off the line
+      var chuteX0 = cpx(f, 0, 0),           chuteY0 = cpy(f, 0, 0);
+      var chuteX1 = cpx(f, chuteU, chuteV), chuteY1 = cpy(f, chuteU, chuteV);
+      ctx.fillStyle = 'rgba(60,50,40,0.7)';
+      Iso.ribbon(ctx, chuteX0, chuteY0, chuteX1, chuteY1, 0.20, BZ + 0.25);
 
-      /* B1 at qualifier: chute extends southwest (left-down on screen) */
-      if (s.terminalFork === 'B1' && chuteSrc === 'qualifier') {
-        chuteDir = { u: -0.6, v: 0.5 };
-      }
-      /* C at evaluator: chute extends southwest */
-      else if (s.terminalFork === 'C' && chuteSrc === 'evaluator') {
-        chuteDir = { u: -0.6, v: 0.5 };
-      }
-      /* B3 at quota: chute extends southwest */
-      else if (s.terminalFork === 'B3' && chuteSrc === 'quota') {
-        chuteDir = { u: -0.6, v: 0.5 };
-      }
+      carrierPart(f, chuteU * 0.55, chuteV * 0.55, BZ + 0.20,
+                  payload.len * 0.6, payload.wid * 0.6, payload.h * 0.6,
+                  payload.color, 'rgba(0,0,0,0.4)');
 
-      if (chuteDir) {
-        /* Draw the chute structure extending from the carrier */
-        var chuteEnd = pT;  /* pT goes 0→1 over dwell */
-        var chuteX0 = cpx(f, 0, 0);
-        var chuteY0 = cpy(f, 0, 0);
-        var chuteX1 = cpx(f, chuteDir.u * chuteEnd, chuteDir.v * chuteEnd);
-        var chuteY1 = cpy(f, chuteDir.u * chuteEnd, chuteDir.v * chuteEnd);
-
-        /* Draw chute walls as ribbons */
-        ctx.fillStyle = 'rgba(60, 50, 40, 0.7)';
-        Iso.ribbon(ctx, chuteX0, chuteY0, chuteX1, chuteY1, 0.20, BZ + 0.25);
-
-        /* Animate package sliding into chute: move it partway down the chute */
-        if (pT > 0) {
-          var slipT = Math.min(1, pT * 1.5);  /* Accelerate into chute */
-          var pkgX = f.x + f.hx * (0 + chuteDir.u * slipT * 0.3) -
-                      f.hy * (0 + chuteDir.v * slipT * 0.3);
-          var pkgY = f.y + f.hy * (0 + chuteDir.u * slipT * 0.3) +
-                      f.hx * (0 + chuteDir.v * slipT * 0.3);
-
-          /* Draw package disappearing into chute */
-          var disappearT = Math.max(0, 1 - slipT * 2);
-          ctx.globalAlpha = disappearT;
-          Iso.box(ctx, {
-            x: pkgX, y: pkgY, z: BZ + 0.30 - slipT * 0.15,
-            w: payloadState.len * disappearT,
-            h: payloadState.h * disappearT,
-            d: payloadState.wid * disappearT,
-            color: payloadState.color
-          });
-          ctx.globalAlpha = 1;
-        }
-      }
+      var forkColor = { B1: '#6a5caa', C: '#3a8880', B3: '#c8a020' }[s.terminalFork] || '#902020';
+      ctx.fillStyle = forkColor;
+      Iso.disc(ctx, cpx(f, chuteU * 0.55, chuteV * 0.55), cpy(f, chuteU * 0.55, chuteV * 0.55),
+               BZ + 0.55, 0.12);
     }
   }
 
@@ -3774,6 +4112,7 @@
        painted over it. Everything else flat is paint ON the slab and goes
        after. */
     drawTrenches();
+    drawConfigFanout();
     drawBelt();
     drawDecals();          /* flat floor paint — must precede every solid */
     drawAuditPulses();     /* glowing receipt objects traveling through relay */
@@ -3987,7 +4326,7 @@
       } else if (o.kind === 'side') {
         /* side structs: o.x/o.y is the NW corner; use box centre for both */
         var scx = o.x + o.w / 2, scy = o.y + o.d / 2;
-        drawSideStruct(o);
+        (BESPOKE_SIDE[o.id] || drawSideStruct)(o);
         bub = P(scx, scy, o.h + ZL - 2);
         anc = P(scx, scy, o.h + 0.2);
         addLabel(bub.x, bub.y, o.label, o.sublabel,
