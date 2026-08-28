@@ -5638,47 +5638,1021 @@ function drawConfigCurator(o) {
 //   );
 // }
 
-  /* ---- ec-manual-runs-service: the remediation bench --------------------
-   * Athena is queried, not called — the readout is a query state. A
-   * compaction gate physically blocks the chunk lane until compaction
-   * finishes; twin dials are the "seam assertion" — Athena's own row count
-   * against the sum of the stitched chunks, a green light only when they
-   * agree. Four small clock faces are the four crons this service runs on
-   * four different intervals (15/5/60/30 min) rather than one. Its DLT is
-   * re-consumed, not terminal, so the reject chute here loops back into the
-   * intake rather than dead-ending. */
   function drawManualRuns(o) {
-    var b = drawSideBase(o, 'manualruns'), sf = b.sf, top = b.top, cs = b.cs, i;
+  /*
+   * ===============================================================
+   * EC-MANUAL-RUNS-SERVICE
+   *
+   * MANUAL REMEDIATION / STITCHING BENCH
+   *
+   * Athena query
+   *      ↓
+   * chunk staging
+   *      ↓
+   * compaction gate
+   *      ↓
+   * seam assertion
+   *      ↓
+   * stitched output
+   *
+   * Failed/DLT work loops back into intake.
+   * ===============================================================
+   */
 
-    ribs(o.x + 0.3, o.x + o.w - 0.3, sf, b.deck + 0.20, o.h - 0.9, 6);
+  var W = o.w;
+  var D = o.d;
 
-    readout(o.x + 0.28, sf, o.h - 0.70, 1.7, 0.36, ['ATHENA', 'SUCCEEDED'], { size: 5.6, color: '#e0b840' });
+  var deck = 0.30;
+  var top = o.h + 0.30;
 
-    /* compaction gate — nothing moves through until this is open */
-    var gx = o.x + o.w - 1.15;
-    door(gx, sf, b.deck + 0.20, 0.5, o.h - 0.5, cs.plinth);
-    lamp(gx + 0.25, sf, o.h - 0.24, 0.06, true, '#7ad080', 1.6);
+  var steel = '#71838a';
+  var steelDark = '#34434a';
+  var steelLight = '#8b9a9e';
 
-    /* byte-range chunk lamps */
-    matrix(o.x + 0.35, sf, b.deck + 0.16, 5, 1, 0.14, 5, 5, '#e0b840', 'rgba(224,184,64,0.34)');
+  var dark = '#202a2f';
+  var dark2 = '#29373d';
 
-    /* seam-assertion twin dials on the deck */
-    Iso.cylinder(ctx, { x: o.x + o.w * 0.32, y: o.y + 0.4, z: top, r: 0.16, h: 0.09, color: M.steel });
-    Iso.cylinder(ctx, { x: o.x + o.w * 0.52, y: o.y + 0.4, z: top, r: 0.16, h: 0.09, color: M.steel });
-    ctx.fillStyle = 'rgba(120,220,140,0.85)';
-    Iso.disc(ctx, o.x + o.w * 0.42, o.y + 0.4, top + 0.12, 0.07);
+  var brass = '#c7a34d';
+  var brassBright = '#e0bd5d';
 
-    /* four cron clock faces — 15 / 5 / 60 / 30 minutes */
-    for (i = 0; i < 4; i++) {
-      Iso.cylinder(ctx, { x: o.x + o.w - 0.5, y: o.y + 0.5 + i * 0.42, z: top,
-                          r: 0.10, h: 0.05, color: M.iron });
+  var green = '#70c58a';
+  var cyan = '#75b8d0';
+  var red = '#c85b52';
+
+  /*
+   * ===============================================================
+   * 1. BESPOKE PLINTH
+   * ===============================================================
+   */
+
+  Iso.box(ctx, {
+    x:o.x - 0.38,
+    y:o.y - 0.38,
+    z:0,
+    w:W + 0.76,
+    d:D + 0.76,
+    h:0.18,
+    color:'#718b96',
+    edge:'rgba(210,230,235,0.38)'
+  });
+
+  Iso.box(ctx, {
+    x:o.x - 0.22,
+    y:o.y - 0.22,
+    z:0.18,
+    w:W + 0.44,
+    d:D + 0.44,
+    h:0.10,
+    color:'#536d78'
+  });
+
+  [
+    [o.x + 0.30, o.y + 0.30],
+    [o.x + W - 0.30, o.y + 0.30],
+    [o.x + 0.30, o.y + D - 0.30],
+    [o.x + W - 0.30, o.y + D - 0.30]
+  ].forEach(function(p) {
+
+    Iso.box(ctx, {
+      x:p[0] - 0.11,
+      y:p[1] - 0.11,
+      z:0.28,
+      w:0.22,
+      d:0.22,
+      h:0.05,
+      color:'#81969d'
+    });
+
+    Iso.cylinder(ctx, {
+      x:p[0],
+      y:p[1],
+      z:0.34,
+      r:0.035,
+      h:0.035,
+      color:brass
+    });
+  });
+
+  /*
+   * ===============================================================
+   * 2. MAIN REMEDIATION DECK
+   * ===============================================================
+   */
+
+  Iso.box(ctx, {
+    x:o.x + 0.30,
+    y:o.y + 0.30,
+    z:deck,
+    w:W - 0.60,
+    d:D - 0.60,
+    h:0.16,
+    color:'#53686f',
+    edge:'rgba(200,220,225,0.30)'
+  });
+
+  /*
+   * central work surface
+   */
+  Iso.box(ctx, {
+    x:o.x + 0.65,
+    y:o.y + 1.20,
+    z:deck + 0.16,
+    w:W - 1.30,
+    d:D - 2.00,
+    h:0.12,
+    color:'#3f5056'
+  });
+
+  /*
+   * ===============================================================
+   * 3. ATHENA QUERY TERMINAL
+   * ===============================================================
+   */
+
+  var ax = o.x + 1.25;
+  var ay = o.y + 0.65;
+
+  /*
+   * terminal cabinet
+   */
+  Iso.box(ctx, {
+    x:ax - 0.65,
+    y:ay - 0.28,
+    z:deck + 0.16,
+    w:1.30,
+    d:0.58,
+    h:0.64,
+    color:steelDark,
+    edge:'rgba(185,210,220,0.32)'
+  });
+
+  /*
+   * screen housing
+   */
+  Iso.box(ctx, {
+    x:ax - 0.54,
+    y:ay - 0.34,
+    z:deck + 0.80,
+    w:1.08,
+    d:0.26,
+    h:0.66,
+    color:dark
+  });
+
+  /*
+   * screen
+   */
+  Iso.box(ctx, {
+    x:ax - 0.45,
+    y:ay - 0.49,
+    z:deck + 0.88,
+    w:0.90,
+    d:0.025,
+    h:0.43,
+    color:'#10191d'
+  });
+
+  stencil(
+    ax - 0.38,
+    ay - 0.52,
+    deck + 1.19,
+    'ATHENA',
+    {
+      size:4.0,
+      color:'rgba(225,190,80,0.92)'
     }
+  );
 
-    /* DLT loop-back — re-consumed, not a dead end */
-    var lx = o.x + 0.4, ly = o.y + o.d + 0.4;
-    pipe(lx, ly, lx, o.y + o.d, 0.05, 0.09, '#6a8e6a');
-    stencil(o.x + 0.28, sf, b.deck + 0.10, 'rejoin → gateway / filter', { size: 4.2 });
+  stencil(
+    ax - 0.38,
+    ay - 0.52,
+    deck + 1.07,
+    'QUERY',
+    {
+      size:3.2,
+      color:'rgba(190,215,220,0.75)'
+    }
+  );
+
+  stencil(
+    ax - 0.38,
+    ay - 0.52,
+    deck + 0.96,
+    'SUCCEEDED',
+    {
+      size:3.2,
+      color:'rgba(110,205,135,0.86)'
+    }
+  );
+
+  /*
+   * query activity lamps
+   */
+  lamp(
+    ax - 0.30,
+    ay - 0.55,
+    deck + 0.68,
+    0.045,
+    true,
+    green,
+    2.2
+  );
+
+  lamp(
+    ax,
+    ay - 0.55,
+    deck + 0.68,
+    0.045,
+    true,
+    cyan,
+    2.0
+  );
+
+  lamp(
+    ax + 0.30,
+    ay - 0.55,
+    deck + 0.68,
+    0.045,
+    true,
+    brass,
+    1.8
+  );
+
+  /*
+   * ===============================================================
+   * 4. CHUNK STAGING LANE
+   * ===============================================================
+   */
+
+  var laneX = o.x + 0.72;
+  var laneY = o.y + 2.10;
+
+  /*
+   * long staging conveyor
+   */
+  Iso.box(ctx, {
+    x:laneX,
+    y:laneY,
+    z:deck + 0.22,
+    w:W - 1.44,
+    d:0.56,
+    h:0.14,
+    color:dark2
+  });
+
+  /*
+   * side rails
+   */
+  Iso.box(ctx, {
+    x:laneX,
+    y:laneY - 0.04,
+    z:deck + 0.38,
+    w:W - 1.44,
+    d:0.05,
+    h:0.10,
+    color:steel
+  });
+
+  Iso.box(ctx, {
+    x:laneX,
+    y:laneY + 0.52,
+    z:deck + 0.38,
+    w:W - 1.44,
+    d:0.05,
+    h:0.10,
+    color:steel
+  });
+
+  /*
+   * byte-range chunk carriers
+   */
+  for (var ch = 0; ch < 5; ch++) {
+
+    var cx = laneX + 0.25 + ch * ((W - 1.95) / 4);
+
+    Iso.box(ctx, {
+      x:cx,
+      y:laneY + 0.08,
+      z:deck + 0.40,
+      w:0.62,
+      d:0.30,
+      h:0.13,
+      color:ch === 4 ? brass : steelLight
+    });
+
+    /*
+     * chunk status lamp
+     */
+    lamp(
+      cx + 0.28,
+      laneY + 0.22,
+      deck + 0.55,
+      0.035,
+      true,
+      ch === 4 ? brass : green,
+      1.5
+    );
   }
+
+  stencil(
+    laneX + 0.10,
+    laneY + 0.80,
+    deck + 0.42,
+    'BYTE-RANGE CHUNKS',
+    {
+      size:3.5,
+      color:'rgba(205,220,225,0.62)'
+    }
+  );
+
+  /*
+   * ===============================================================
+   * 5. COMPACTION GATE
+   * ===============================================================
+   */
+
+  var gateX = o.x + W - 1.10;
+  var gateY = laneY + 0.28;
+
+  /*
+   * gate housing
+   */
+  Iso.box(ctx, {
+    x:gateX - 0.48,
+    y:gateY - 0.30,
+    z:deck + 0.16,
+    w:0.96,
+    d:0.68,
+    h:1.20,
+    color:steelDark,
+    edge:'rgba(185,210,215,0.30)'
+  });
+
+  /*
+   * physical gate blade
+   */
+  Iso.box(ctx, {
+    x:gateX - 0.08,
+    y:gateY - 0.12,
+    z:deck + 0.28,
+    w:0.16,
+    d:0.44,
+    h:0.92,
+    color:brass
+  });
+
+  /*
+   * actuator
+   */
+  Iso.cylinder(ctx, {
+    x:gateX,
+    y:gateY + 0.20,
+    z:deck + 1.30,
+    r:0.16,
+    h:0.12,
+    color:steelLight
+  });
+
+  lamp(
+    gateX,
+    gateY - 0.35,
+    deck + 1.48,
+    0.065,
+    true,
+    green,
+    2.8
+  );
+
+  stencil(
+    gateX - 0.44,
+    gateY + 0.48,
+    deck + 1.60,
+    'COMPACTION',
+    {
+      size:3.3,
+      color:'rgba(215,220,205,0.70)'
+    }
+  );
+
+  stencil(
+    gateX - 0.20,
+    gateY + 0.48,
+    deck + 1.46,
+    'OPEN',
+    {
+      size:3.4,
+      color:'rgba(110,210,130,0.78)'
+    }
+  );
+
+  /*
+   * ===============================================================
+   * 6. SEAM ASSERTION STATION
+   * ===============================================================
+   */
+
+  var seamX = o.x + W * 0.50;
+  var seamY = o.y + D * 0.66;
+
+  /*
+   * assertion table
+   */
+  Iso.box(ctx, {
+    x:seamX - 1.35,
+    y:seamY - 0.42,
+    z:deck + 0.30,
+    w:2.70,
+    d:0.84,
+    h:0.18,
+    color:dark
+  });
+
+  /*
+   * twin count dials
+   */
+  [
+    {
+      x:seamX - 0.68,
+      label:'ATHENA ROWS'
+    },
+    {
+      x:seamX + 0.68,
+      label:'CHUNKS SUM'
+    }
+  ].forEach(function(dial) {
+
+    Iso.cylinder(ctx, {
+      x:dial.x,
+      y:seamY - 0.12,
+      z:deck + 0.52,
+      r:0.32,
+      h:0.10,
+      color:steel
+    });
+
+    Iso.cylinder(ctx, {
+      x:dial.x,
+      y:seamY - 0.14,
+      z:deck + 0.63,
+      r:0.24,
+      h:0.025,
+      color:'#182226'
+    });
+
+    /*
+     * dial indicator
+     */
+    Iso.box(ctx, {
+      x:dial.x - 0.025,
+      y:seamY - 0.34,
+      z:deck + 0.66,
+      w:0.05,
+      d:0.22,
+      h:0.025,
+      color:brassBright
+    });
+
+    stencil(
+      dial.x - 0.43,
+      seamY + 0.37,
+      deck + 0.66,
+      dial.label,
+      {
+        size:2.8,
+        color:'rgba(205,215,215,0.60)'
+      }
+    );
+  });
+
+  /*
+   * assertion light
+   */
+  lamp(
+    seamX,
+    seamY + 0.20,
+    deck + 0.68,
+    0.085,
+    true,
+    green,
+    4.0
+  );
+
+  stencil(
+    seamX - 0.33,
+    seamY + 0.52,
+    deck + 0.80,
+    'SEAM = TRUE',
+    {
+      size:4.0,
+      color:'rgba(110,215,135,0.82)'
+    }
+  );
+
+  /*
+   * ===============================================================
+   * 7. STITCHING / REMEDIATION PRESS
+   * ===============================================================
+   */
+
+  var pressX = o.x + W * 0.50;
+  var pressY = o.y + D * 0.30;
+
+  /*
+   * press foundation
+   */
+  Iso.box(ctx, {
+    x:pressX - 1.20,
+    y:pressY - 0.48,
+    z:deck + 0.20,
+    w:2.40,
+    d:0.96,
+    h:0.22,
+    color:steelDark
+  });
+
+  /*
+   * twin side uprights
+   */
+  [-0.88, 0.88].forEach(function(dx) {
+
+    Iso.box(ctx, {
+      x:pressX + dx - 0.12,
+      y:pressY - 0.30,
+      z:deck + 0.42,
+      w:0.24,
+      d:0.34,
+      h:1.72,
+      color:steel
+    });
+  });
+
+  /*
+   * upper press beam
+   */
+  Iso.box(ctx, {
+    x:pressX - 1.00,
+    y:pressY - 0.34,
+    z:deck + 2.00,
+    w:2.00,
+    d:0.40,
+    h:0.22,
+    color:steelLight
+  });
+
+  /*
+   * stitching ram
+   */
+  Iso.box(ctx, {
+    x:pressX - 0.11,
+    y:pressY - 0.16,
+    z:deck + 0.64,
+    w:0.22,
+    d:0.22,
+    h:1.36,
+    color:dark2
+  });
+
+  Iso.cylinder(ctx, {
+    x:pressX,
+    y:pressY - 0.04,
+    z:deck + 2.23,
+    r:0.28,
+    h:0.30,
+    color:steelDark
+  });
+
+  /*
+   * ram head
+   */
+  Iso.box(ctx, {
+    x:pressX - 0.45,
+    y:pressY - 0.32,
+    z:deck + 0.58,
+    w:0.90,
+    d:0.42,
+    h:0.16,
+    color:brass
+  });
+
+  /*
+   * stitching plates
+   */
+  for (var st = 0; st < 4; st++) {
+
+    Iso.box(ctx, {
+      x:pressX - 0.62 + st * 0.40,
+      y:pressY - 0.38,
+      z:deck + 0.77,
+      w:0.26,
+      d:0.30,
+      h:0.06,
+      color:st % 2 ? steelLight : brassBright
+    });
+  }
+
+  stencil(
+    pressX - 0.62,
+    pressY + 0.48,
+    deck + 1.05,
+    'STITCH / REBUILD',
+    {
+      size:3.8,
+      color:'rgba(220,195,120,0.70)'
+    }
+  );
+
+  /*
+   * ===============================================================
+   * 8. FOUR CRON MECHANISMS
+   * ===============================================================
+   */
+
+  var cronX = o.x + W - 0.68;
+  var cronStartY = o.y + 0.70;
+
+  var cronData = [
+    ['15m', green],
+    ['5m', cyan],
+    ['60m', brass],
+    ['30m', green]
+  ];
+
+  cronData.forEach(function(c, i) {
+
+    var cy = cronStartY + i * 0.62;
+
+    /*
+     * clock housing
+     */
+    Iso.cylinder(ctx, {
+      x:cronX,
+      y:cy,
+      z:top,
+      r:0.18,
+      h:0.08,
+      color:steel
+    });
+
+    /*
+     * clock face
+     */
+    Iso.cylinder(ctx, {
+      x:cronX,
+      y:cy - 0.02,
+      z:top + 0.09,
+      r:0.135,
+      h:0.025,
+      color:'#1a2428'
+    });
+
+    /*
+     * clock hand
+     */
+    Iso.box(ctx, {
+      x:cronX - 0.018,
+      y:cy - 0.10,
+      z:top + 0.12,
+      w:0.036,
+      d:0.10,
+      h:0.018,
+      color:c[1]
+    });
+
+    lamp(
+      cronX + 0.25,
+      cy,
+      top + 0.12,
+      0.035,
+      true,
+      c[1],
+      1.4
+    );
+
+    stencil(
+      cronX - 0.58,
+      cy + 0.16,
+      top + 0.16,
+      c[0],
+      {
+        size:3.1,
+        color:'rgba(205,215,215,0.62)'
+      }
+    );
+  });
+
+  stencil(
+    cronX - 0.55,
+    cronStartY + 2.52,
+    top + 0.18,
+    'SCHEDULE',
+    {
+      size:3.4,
+      color:'rgba(195,210,215,0.62)'
+    }
+  );
+
+  /*
+   * ===============================================================
+   * 9. PHYSICAL HMI
+   * ===============================================================
+   */
+
+  var hx = o.x + 1.45;
+  var hy = o.y + D - 0.38;
+
+  /*
+   * pedestal
+   */
+  Iso.box(ctx, {
+    x:hx - 0.68,
+    y:hy - 0.14,
+    z:deck,
+    w:1.36,
+    d:0.52,
+    h:0.48,
+    color:steelDark
+  });
+
+  /*
+   * support
+   */
+  Iso.box(ctx, {
+    x:hx - 0.08,
+    y:hy + 0.02,
+    z:deck + 0.48,
+    w:0.16,
+    d:0.16,
+    h:0.80,
+    color:steel
+  });
+
+  /*
+   * enclosure
+   */
+  Iso.box(ctx, {
+    x:hx - 0.62,
+    y:hy - 0.04,
+    z:deck + 1.20,
+    w:1.24,
+    d:0.30,
+    h:0.70,
+    color:dark,
+    edge:'rgba(185,210,220,0.38)'
+  });
+
+  /*
+   * bezel
+   */
+  Iso.box(ctx, {
+    x:hx - 0.53,
+    y:hy - 0.20,
+    z:deck + 1.27,
+    w:1.06,
+    d:0.05,
+    h:0.52,
+    color:steelLight
+  });
+
+  /*
+   * screen
+   */
+  Iso.box(ctx, {
+    x:hx - 0.46,
+    y:hy - 0.24,
+    z:deck + 1.34,
+    w:0.92,
+    d:0.018,
+    h:0.36,
+    color:'#10191d'
+  });
+
+  stencil(
+    hx - 0.40,
+    hy - 0.27,
+    deck + 1.63,
+    'MANUAL RUN',
+    {
+      size:3.7,
+      color:'rgba(150,215,195,0.92)'
+    }
+  );
+
+  stencil(
+    hx - 0.40,
+    hy - 0.27,
+    deck + 1.52,
+    'ATHENA  OK',
+    {
+      size:3.0,
+      color:'rgba(205,220,220,0.82)'
+    }
+  );
+
+  stencil(
+    hx - 0.40,
+    hy - 0.27,
+    deck + 1.41,
+    'SEAM     OK',
+    {
+      size:3.0,
+      color:'rgba(110,210,135,0.88)'
+    }
+  );
+
+  /*
+   * HMI control strip
+   */
+  Iso.box(ctx, {
+    x:hx - 0.53,
+    y:hy - 0.30,
+    z:deck + 0.98,
+    w:1.06,
+    d:0.05,
+    h:0.13,
+    color:'#20292d'
+  });
+
+  [green, cyan, brass].forEach(function(col, i) {
+
+    lamp(
+      hx - 0.34 + i * 0.25,
+      hy - 0.34,
+      deck + 1.05,
+      0.042,
+      true,
+      col,
+      2.0
+    );
+  });
+
+  /*
+   * physical run selector
+   */
+  Iso.cylinder(ctx, {
+    x:hx + 0.42,
+    y:hy - 0.35,
+    z:deck + 1.08,
+    r:0.085,
+    h:0.08,
+    color:steelLight
+  });
+
+  Iso.cylinder(ctx, {
+    x:hx + 0.42,
+    y:hy - 0.35,
+    z:deck + 1.16,
+    r:0.050,
+    h:0.05,
+    color:brass
+  });
+
+  /*
+   * ===============================================================
+   * 10. DLT LOOP-BACK
+   * ===============================================================
+   *
+   * This is intentionally NOT a dead-end chute.
+   * It physically returns toward intake.
+   */
+
+  var lx = o.x + 0.42;
+  var ly = o.y + D + 0.48;
+
+  /*
+   * failure collection tray
+   */
+  Iso.box(ctx, {
+    x:lx - 0.36,
+    y:ly - 0.20,
+    z:deck,
+    w:0.72,
+    d:0.40,
+    h:0.16,
+    color:'#4b3e35'
+  });
+
+  /*
+   * reject marker
+   */
+  lamp(
+    lx,
+    ly - 0.24,
+    deck + 0.22,
+    0.055,
+    true,
+    red,
+    2.0
+  );
+
+  stencil(
+    lx - 0.30,
+    ly + 0.28,
+    deck + 0.34,
+    'DLT',
+    {
+      size:4.0,
+      color:'rgba(220,120,105,0.72)'
+    }
+  );
+
+  /*
+   * loop-back pipe
+   */
+  pipe(
+    lx,
+    ly,
+    lx,
+    o.y + D - 0.10,
+    deck + 0.05,
+    0.10,
+    '#6a8e6a'
+  );
+
+  pipe(
+    lx,
+    o.y + D - 0.10,
+    o.x + 0.05,
+    o.y + D - 0.10,
+    deck + 0.05,
+    0.10,
+    '#6a8e6a'
+  );
+
+  /*
+   * directional return marker
+   */
+  Iso.cylinder(ctx, {
+    x:o.x + 0.05,
+    y:o.y + D - 0.10,
+    z:deck + 0.10,
+    r:0.10,
+    h:0.07,
+    color:green
+  });
+
+  stencil(
+    o.x + 0.18,
+    o.y + D - 0.32,
+    deck + 0.24,
+    'REJOIN INTAKE',
+    {
+      size:3.3,
+      color:'rgba(110,190,125,0.68)'
+    }
+  );
+
+  /*
+   * ===============================================================
+   * 11. MACHINE DETAIL
+   * ===============================================================
+   */
+
+  /*
+   * exposed mechanical rails
+   */
+  for (var r = 0; r < 3; r++) {
+
+    Iso.box(ctx, {
+      x:o.x + 0.70,
+      y:o.y + 1.12 + r * 1.28,
+      z:deck + 0.30,
+      w:W - 1.40,
+      d:0.045,
+      h:0.055,
+      color:'#84959a'
+    });
+  }
+
+  /*
+   * warning lamps along machine perimeter
+   */
+  for (var p = 0; p < 6; p++) {
+
+    lamp(
+      o.x + 0.65 + p * ((W - 1.30) / 5),
+      o.y + 0.20,
+      top,
+      0.035,
+      true,
+      p === 3 ? brass : green,
+      1.4
+    );
+  }
+
+  /*
+   * identity plate
+   */
+  stencil(
+    o.x + 0.42,
+    o.y + 0.30,
+    top + 0.04,
+    'REMEDIATION BENCH',
+    {
+      size:4.0,
+      color:'rgba(205,220,225,0.62)'
+    }
+  );
+}
 
   /* ---- ec-review-service: the alcatraz registry --------------------------
    * No surveillance logic, no mutation — a lookup, so the standout part is
@@ -6873,79 +7847,1941 @@ function drawConfigCurator(o) {
   }
 }
 
-  /* ---- ea-ui-portal: the dispatch desk ------------------------------------
-   * The one side structure with a screen a person actually reads, so it
-   * gets a hooded readout instead of a bare plate. It produces only —
-   * there is no @KafkaListener anywhere in this service, it never
-   * consumes — which is why nothing feeds in from the apron the way it
-   * does at every other machine on this floor. The four-chute sorter is
-   * the small/medium/large/bulk tier a disposition is dispatched into. */
   function drawPortal(o) {
-    var b = drawSideBase(o, 'portal'), sf = b.sf, top = b.top, cs = b.cs, i;
+  /*
+   * ===============================================================
+   * EA-UI-PORTAL
+   *
+   * REVIEW OPERATIONS / DISPATCH DESK
+   *
+   * Human-facing entry point.
+   *
+   * reviewer
+   *    ↓
+   * identity / entitlement
+   *    ↓
+   * review queue
+   *    ↓
+   * pipeline selection
+   *    ↓
+   * disposition dispatch
+   *
+   * This service produces only. There is deliberately no incoming
+   * Kafka machinery.
+   * ===============================================================
+   */
 
-    ribs(o.x + 0.3, o.x + o.w - 0.3, sf, b.deck + 0.20, o.h - 1.3, 5);
+  var W = o.w;
+  var D = o.d;
 
-    /* hood over the screen */
-    Iso.box(ctx, { x: o.x + 0.20, y: o.y - 0.14, z: top - 0.90, w: o.w - 0.40, d: 0.16, h: 0.18, color: cs.plinth });
-    readout(o.x + 0.28, sf, o.h - 0.82, o.w - 1.7, 0.46,
-            ['QUEUE: 12 alerted', 'phrase match: 3'], { size: 5.8, color: '#8fe0c0' });
+  var deck = 0.30;
+  var top = o.h + 0.30;
 
-    /* four-chute dispatch sorter at the apron */
-    var tiers = [['S', '#8d949c'], ['M', '#7aa8d0'], ['L', '#c9a233'], ['BULK', '#c05040']];
-    var cw = (o.w - 0.6) / 4;
-    for (i = 0; i < 4; i++) {
-      var tx = o.x + 0.3 + i * cw;
-      Iso.box(ctx, { x: tx, y: o.y + o.d, z: 0, w: cw - 0.10, d: 0.5, h: 0.10, color: tiers[i][1] });
-      floorText(tx + (cw - 0.10) / 2 - 0.06, o.y + o.d + 0.56, 0.03, [tiers[i][0]],
-                { size: 4.2, color: 'rgba(255,255,255,0.55)' });
+  var steel = '#71838a';
+  var steelDark = '#34434a';
+  var steelLight = '#8b9a9e';
+
+  var dark = '#202a2f';
+  var dark2 = '#29373d';
+
+  var blue = '#6f9fbd';
+  var cyan = '#78bfd4';
+  var green = '#70c58a';
+  var amber = '#d8ad4c';
+  var rose = '#bd7181';
+  var red = '#c65a52';
+
+  /*
+   * ===============================================================
+   * 1. BESPOKE PLINTH
+   * ===============================================================
+   */
+
+  Iso.box(ctx, {
+    x:o.x - 0.42,
+    y:o.y - 0.42,
+    z:0,
+    w:W + 0.84,
+    d:D + 0.84,
+    h:0.18,
+    color:'#718b96',
+    edge:'rgba(210,230,235,0.38)'
+  });
+
+  Iso.box(ctx, {
+    x:o.x - 0.24,
+    y:o.y - 0.24,
+    z:0.18,
+    w:W + 0.48,
+    d:D + 0.48,
+    h:0.10,
+    color:'#536d78'
+  });
+
+  /*
+   * anchor plates
+   */
+  [
+    [o.x + 0.30, o.y + 0.30],
+    [o.x + W - 0.30, o.y + 0.30],
+    [o.x + 0.30, o.y + D - 0.30],
+    [o.x + W - 0.30, o.y + D - 0.30]
+  ].forEach(function(p) {
+
+    Iso.box(ctx, {
+      x:p[0] - 0.11,
+      y:p[1] - 0.11,
+      z:0.28,
+      w:0.22,
+      d:0.22,
+      h:0.05,
+      color:'#81969d'
+    });
+
+    Iso.cylinder(ctx, {
+      x:p[0],
+      y:p[1],
+      z:0.34,
+      r:0.035,
+      h:0.035,
+      color:amber
+    });
+  });
+
+  /*
+   * ===============================================================
+   * 2. OPERATOR DESK PLATFORM
+   * ===============================================================
+   */
+
+  Iso.box(ctx, {
+    x:o.x + 0.30,
+    y:o.y + 0.30,
+    z:deck,
+    w:W - 0.60,
+    d:D - 0.60,
+    h:0.16,
+    color:'#536970',
+    edge:'rgba(205,225,230,0.30)'
+  });
+
+  /*
+   * central desk floor
+   */
+  Iso.box(ctx, {
+    x:o.x + 0.70,
+    y:o.y + 1.15,
+    z:deck + 0.16,
+    w:W - 1.40,
+    d:D - 1.85,
+    h:0.10,
+    color:'#3f5056'
+  });
+
+  /*
+   * ===============================================================
+   * 3. MAIN REVIEW CONSOLE
+   * ===============================================================
+   */
+
+  var cx = o.x + W * 0.50;
+  var cy = o.y + 0.90;
+
+  /*
+   * heavy console body
+   */
+  Iso.box(ctx, {
+    x:cx - 2.15,
+    y:cy - 0.32,
+    z:deck + 0.16,
+    w:4.30,
+    d:0.86,
+    h:0.72,
+    color:steelDark,
+    edge:'rgba(190,215,220,0.34)'
+  });
+
+  /*
+   * sloped operator surface
+   */
+  Iso.box(ctx, {
+    x:cx - 1.95,
+    y:cy - 0.42,
+    z:deck + 0.88,
+    w:3.90,
+    d:0.72,
+    h:0.16,
+    color:'#61747b'
+  });
+
+  /*
+   * ===============================================================
+   * 4. LARGE REVIEW SCREEN
+   * ===============================================================
+   */
+
+  var sx = cx;
+  var sy = cy + 0.20;
+
+  /*
+   * rear screen support
+   */
+  Iso.box(ctx, {
+    x:sx - 1.65,
+    y:sy + 0.10,
+    z:deck + 1.00,
+    w:3.30,
+    d:0.18,
+    h:1.60,
+    color:steelDark
+  });
+
+  /*
+   * display housing
+   */
+  Iso.box(ctx, {
+    x:sx - 1.52,
+    y:sy - 0.02,
+    z:deck + 1.14,
+    w:3.04,
+    d:0.28,
+    h:1.38,
+    color:dark,
+    edge:'rgba(185,215,225,0.42)'
+  });
+
+  /*
+   * bezel
+   */
+  Iso.box(ctx, {
+    x:sx - 1.38,
+    y:sy - 0.19,
+    z:deck + 1.27,
+    w:2.76,
+    d:0.06,
+    h:1.10,
+    color:steelLight
+  });
+
+  /*
+   * screen
+   */
+  Iso.box(ctx, {
+    x:sx - 1.28,
+    y:sy - 0.23,
+    z:deck + 1.36,
+    w:2.56,
+    d:0.018,
+    h:0.88,
+    color:'#10191d'
+  });
+
+  /*
+   * screen title
+   */
+  stencil(
+    sx - 1.14,
+    sy - 0.27,
+    deck + 2.05,
+    'REVIEW OPERATIONS',
+    {
+      size:5.0,
+      color:'rgba(145,215,195,0.94)'
     }
+  );
 
-    stencil(o.x + 0.26, sf, b.deck + 0.08, 'produces only — no Kafka listener',
-            { size: 3.8, color: 'rgba(200,214,232,0.4)' });
+  /*
+   * queue state
+   */
+  stencil(
+    sx - 1.14,
+    sy - 0.28,
+    deck + 1.86,
+    'QUEUE       12',
+    {
+      size:4.0,
+      color:'rgba(210,225,225,0.86)'
+    }
+  );
+
+  stencil(
+    sx - 1.14,
+    sy - 0.28,
+    deck + 1.70,
+    'ALERTED      3',
+    {
+      size:4.0,
+      color:'rgba(210,225,225,0.86)'
+    }
+  );
+
+  stencil(
+    sx - 1.14,
+    sy - 0.28,
+    deck + 1.54,
+    'PIPELINES    4',
+    {
+      size:4.0,
+      color:'rgba(210,225,225,0.86)'
+    }
+  );
+
+  stencil(
+    sx - 1.14,
+    sy - 0.28,
+    deck + 1.38,
+    'ENTITLED    YES',
+    {
+      size:4.0,
+      color:'rgba(110,210,135,0.90)'
+    }
+  );
+
+  /*
+   * queue activity bars
+   */
+  for (var qb = 0; qb < 10; qb++) {
+
+    Iso.box(ctx, {
+      x:sx - 1.12 + qb * 0.22,
+      y:sy - 0.29,
+      z:deck + 1.23,
+      w:0.13,
+      d:0.018,
+      h:0.05 + (qb % 4) * 0.025,
+      color:qb < 7 ? green : amber
+    });
   }
 
-  /* ---- ep-conduct-external-api: the checkpoint ----------------------------
-   * Every call is audited before it is even routed — a servlet filter of
-   * the highest precedence — so the audit stamp sits at the very entrance,
-   * ahead of the badge post and the turnstile it walks through next. Two
-   * intake pipes are the two Mongo connections this service holds open,
-   * shared and site — a site-Mongo outage can break tenant-scoped reads
-   * while shared reads keep working, which is why they are drawn as two
-   * separate runs rather than one. The gauge is the addToQueue circuit
-   * breaker: request count plus current queue depth against capacity,
-   * with a relief valve rather than a silent overflow. The ticket
-   * dispenser is the one thing that isn't a pure forward: a bulk action
-   * hands back a jobId immediately and the caller polls for it. */
+  /*
+   * ===============================================================
+   * 5. REVIEWER IDENTITY / BADGE STATION
+   * ===============================================================
+   */
+
+  var bx = o.x + 0.78;
+  var by = o.y + 2.72;
+
+  Iso.box(ctx, {
+    x:bx - 0.40,
+    y:by - 0.24,
+    z:deck + 0.16,
+    w:0.80,
+    d:0.48,
+    h:0.48,
+    color:steelDark
+  });
+
+  /*
+   * badge slot
+   */
+  Iso.box(ctx, {
+    x:bx - 0.26,
+    y:by - 0.30,
+    z:deck + 0.40,
+    w:0.52,
+    d:0.035,
+    h:0.10,
+    color:'#11191c'
+  });
+
+  /*
+   * identity indicator
+   */
+  Iso.cylinder(ctx, {
+    x:bx,
+    y:by - 0.34,
+    z:deck + 0.62,
+    r:0.08,
+    h:0.08,
+    color:green
+  });
+
+  stencil(
+    bx - 0.46,
+    by + 0.38,
+    deck + 0.78,
+    'REVIEWER',
+    {
+      size:3.3,
+      color:'rgba(195,215,220,0.70)'
+    }
+  );
+
+  /*
+   * ===============================================================
+   * 6. ENTITLEMENT GATE
+   * ===============================================================
+   */
+
+  var ex = o.x + 2.30;
+  var ey = o.y + 2.70;
+
+  /*
+   * gate pillars
+   */
+  [ex - 0.34, ex + 0.34].forEach(function(px) {
+
+    Iso.box(ctx, {
+      x:px - 0.07,
+      y:ey - 0.12,
+      z:deck + 0.16,
+      w:0.14,
+      d:0.18,
+      h:0.90,
+      color:steel
+    });
+
+    lamp(
+      px,
+      ey - 0.18,
+      deck + 1.06,
+      0.05,
+      true,
+      green,
+      2.5
+    );
+  });
+
+  /*
+   * entitlement beam
+   */
+  Iso.box(ctx, {
+    x:ex - 0.38,
+    y:ey - 0.16,
+    z:deck + 0.90,
+    w:0.76,
+    d:0.12,
+    h:0.10,
+    color:green
+  });
+
+  stencil(
+    ex - 0.50,
+    ey + 0.38,
+    deck + 1.22,
+    'ENTITLEMENT',
+    {
+      size:3.2,
+      color:'rgba(110,205,135,0.76)'
+    }
+  );
+
+  /*
+   * ===============================================================
+   * 7. PIPELINE SELECTOR BANK
+   * ===============================================================
+   */
+
+  var py = o.y + D * 0.56;
+
+  Iso.box(ctx, {
+    x:o.x + 0.62,
+    y:py - 0.24,
+    z:deck + 0.18,
+    w:W - 1.24,
+    d:0.52,
+    h:0.24,
+    color:dark2
+  });
+
+  for (var pi = 0; pi < 4; pi++) {
+
+    var px2 = o.x + 1.10 + pi * ((W - 2.20) / 3);
+
+    Iso.cylinder(ctx, {
+      x:px2,
+      y:py - 0.32,
+      z:deck + 0.48,
+      r:0.14,
+      h:0.10,
+      color:steelLight
+    });
+
+    Iso.cylinder(ctx, {
+      x:px2,
+      y:py - 0.32,
+      z:deck + 0.58,
+      r:0.075,
+      h:0.05,
+      color:pi === 0 ? cyan : steel
+    });
+
+    lamp(
+      px2,
+      py - 0.02,
+      deck + 0.58,
+      0.045,
+      true,
+      pi === 0 ? green : cyan,
+      1.8
+    );
+
+    stencil(
+      px2 - 0.14,
+      py + 0.18,
+      deck + 0.70,
+      'P' + (pi + 1),
+      {
+        size:3.4,
+        color:'rgba(200,215,220,0.65)'
+      }
+    );
+  }
+
+  stencil(
+    o.x + 0.78,
+    py + 0.56,
+    deck + 0.72,
+    'PIPELINE SELECT',
+    {
+      size:3.7,
+      color:'rgba(190,215,225,0.64)'
+    }
+  );
+
+  /*
+   * ===============================================================
+   * 8. OPERATOR CONTROL PANEL
+   * ===============================================================
+   */
+
+  var kx = o.x + W * 0.50;
+  var ky = o.y + D - 0.68;
+
+  Iso.box(ctx, {
+    x:kx - 1.50,
+    y:ky - 0.28,
+    z:deck + 0.18,
+    w:3.00,
+    d:0.56,
+    h:0.30,
+    color:steelDark
+  });
+
+  /*
+   * status lamps
+   */
+  [
+    ['READY', green],
+    ['REVIEW', cyan],
+    ['ACTION', amber]
+  ].forEach(function(s, i) {
+
+    var lx = kx - 0.96 + i * 0.72;
+
+    lamp(
+      lx,
+      ky - 0.34,
+      deck + 0.55,
+      0.055,
+      true,
+      s[1],
+      2.4
+    );
+
+    stencil(
+      lx - 0.20,
+      ky + 0.18,
+      deck + 0.58,
+      s[0],
+      {
+        size:2.8,
+        color:'rgba(205,215,215,0.60)'
+      }
+    );
+  });
+
+  /*
+   * execute lever
+   */
+  Iso.box(ctx, {
+    x:kx + 0.92,
+    y:ky - 0.34,
+    z:deck + 0.38,
+    w:0.12,
+    d:0.12,
+    h:0.30,
+    color:steelLight
+  });
+
+  Iso.cylinder(ctx, {
+    x:kx + 0.98,
+    y:ky - 0.38,
+    z:deck + 0.70,
+    r:0.10,
+    h:0.08,
+    color:rose
+  });
+
+  stencil(
+    kx + 0.62,
+    ky + 0.26,
+    deck + 0.76,
+    'DISPATCH',
+    {
+      size:3.2,
+      color:'rgba(210,130,145,0.74)'
+    }
+  );
+
+  /*
+   * ===============================================================
+   * 9. FOUR-TIER DISPATCH SORTER
+   * ===============================================================
+   */
+
+  var sorterY = o.y + D + 0.46;
+
+  var tiers = [
+    ['S', '#8d949c'],
+    ['M', '#7aa8d0'],
+    ['L', '#c9a233'],
+    ['BULK', '#c05040']
+  ];
+
+  var cw = (W - 0.80) / 4;
+
+  for (var i = 0; i < 4; i++) {
+
+    var tx = o.x + 0.40 + i * cw;
+
+    /*
+     * chute body
+     */
+    Iso.box(ctx, {
+      x:tx,
+      y:sorterY - 0.18,
+      z:deck,
+      w:cw - 0.12,
+      d:0.72,
+      h:0.18,
+      color:tiers[i][1],
+      edge:'rgba(220,225,225,0.25)'
+    });
+
+    /*
+     * raised side walls
+     */
+    Iso.box(ctx, {
+      x:tx,
+      y:sorterY - 0.20,
+      z:deck + 0.18,
+      w:0.06,
+      d:0.64,
+      h:0.18,
+      color:steelDark
+    });
+
+    Iso.box(ctx, {
+      x:tx + cw - 0.18,
+      y:sorterY - 0.20,
+      z:deck + 0.18,
+      w:0.06,
+      d:0.64,
+      h:0.18,
+      color:steelDark
+    });
+
+    /*
+     * dispatch roller
+     */
+    Iso.cylinder(ctx, {
+      x:tx + (cw - 0.12) * 0.50,
+      y:sorterY - 0.48,
+      z:deck + 0.38,
+      r:0.09,
+      h:0.28,
+      color:steelLight
+    });
+
+    /*
+     * tier status lamp
+     */
+    lamp(
+      tx + (cw - 0.12) * 0.50,
+      sorterY - 0.56,
+      deck + 0.55,
+      0.045,
+      true,
+      tiers[i][1],
+      2.0
+    );
+
+    stencil(
+      tx + 0.08,
+      sorterY + 0.38,
+      deck + 0.42,
+      tiers[i][0],
+      {
+        size:4.0,
+        color:'rgba(240,240,235,0.68)'
+      }
+    );
+  }
+
+  stencil(
+    o.x + 0.65,
+    sorterY + 0.76,
+    deck + 0.46,
+    'DISPOSITION DISPATCH',
+    {
+      size:4.0,
+      color:'rgba(205,220,225,0.62)'
+    }
+  );
+
+  /*
+   * ===============================================================
+   * 10. OUTPUT INDICATORS
+   * ===============================================================
+   */
+
+  var outY = o.y + D - 0.22;
+
+  /*
+   * no input conveyor:
+   * the portal produces outward, so these are outbound indicators.
+   */
+  [
+    ['REVIEW', cyan],
+    ['ACTION', amber],
+    ['AUDIT', green]
+  ].forEach(function(item, idx) {
+
+    var ox = o.x + 1.15 + idx * 2.05;
+
+    Iso.box(ctx, {
+      x:ox - 0.46,
+      y:outY - 0.16,
+      z:deck + 0.20,
+      w:0.92,
+      d:0.30,
+      h:0.12,
+      color:dark
+    });
+
+    lamp(
+      ox,
+      outY - 0.34,
+      deck + 0.38,
+      0.045,
+      true,
+      item[1],
+      1.8
+    );
+
+    stencil(
+      ox - 0.32,
+      outY + 0.14,
+      deck + 0.40,
+      item[0],
+      {
+        size:2.9,
+        color:'rgba(200,215,220,0.58)'
+      }
+    );
+  });
+
+  /*
+   * ===============================================================
+   * 11. PHYSICAL PORTAL HMI
+   * ===============================================================
+   */
+
+  var hx = o.x + W - 1.00;
+  var hy = o.y + 2.60;
+
+  /*
+   * pedestal
+   */
+  Iso.box(ctx, {
+    x:hx - 0.62,
+    y:hy - 0.16,
+    z:deck + 0.16,
+    w:1.24,
+    d:0.50,
+    h:0.42,
+    color:steelDark
+  });
+
+  /*
+   * support arm
+   */
+  Iso.box(ctx, {
+    x:hx - 0.08,
+    y:hy + 0.02,
+    z:deck + 0.58,
+    w:0.16,
+    d:0.16,
+    h:0.72,
+    color:steel
+  });
+
+  /*
+   * HMI enclosure
+   */
+  Iso.box(ctx, {
+    x:hx - 0.57,
+    y:hy - 0.04,
+    z:deck + 1.28,
+    w:1.14,
+    d:0.28,
+    h:0.68,
+    color:dark,
+    edge:'rgba(185,210,220,0.38)'
+  });
+
+  /*
+   * bezel
+   */
+  Iso.box(ctx, {
+    x:hx - 0.49,
+    y:hy - 0.19,
+    z:deck + 1.34,
+    w:0.98,
+    d:0.05,
+    h:0.50,
+    color:steelLight
+  });
+
+  /*
+   * screen
+   */
+  Iso.box(ctx, {
+    x:hx - 0.42,
+    y:hy - 0.23,
+    z:deck + 1.40,
+    w:0.84,
+    d:0.018,
+    h:0.34,
+    color:'#10191d'
+  });
+
+  stencil(
+    hx - 0.36,
+    hy - 0.26,
+    deck + 1.67,
+    'PORTAL',
+    {
+      size:3.8,
+      color:'rgba(150,215,195,0.92)'
+    }
+  );
+
+  stencil(
+    hx - 0.36,
+    hy - 0.26,
+    deck + 1.56,
+    'USER    OK',
+    {
+      size:2.9,
+      color:'rgba(205,220,220,0.82)'
+    }
+  );
+
+  stencil(
+    hx - 0.36,
+    hy - 0.26,
+    deck + 1.45,
+    'QUEUE    12',
+    {
+      size:2.9,
+      color:'rgba(205,220,220,0.82)'
+    }
+  );
+
+  /*
+   * HMI status strip
+   */
+  Iso.box(ctx, {
+    x:hx - 0.49,
+    y:hy - 0.29,
+    z:deck + 0.98,
+    w:0.98,
+    d:0.05,
+    h:0.13,
+    color:'#20292d'
+  });
+
+  [green, cyan, amber].forEach(function(col, i) {
+
+    lamp(
+      hx - 0.31 + i * 0.23,
+      hy - 0.33,
+      deck + 1.05,
+      0.042,
+      true,
+      col,
+      1.8
+    );
+  });
+
+  /*
+   * ===============================================================
+   * 12. STRUCTURAL DETAIL
+   * ===============================================================
+   */
+
+  /*
+   * exposed floor rails
+   */
+  for (var rail = 0; rail < 3; rail++) {
+
+    Iso.box(ctx, {
+      x:o.x + 0.72,
+      y:o.y + 1.42 + rail * 1.22,
+      z:deck + 0.27,
+      w:W - 1.44,
+      d:0.045,
+      h:0.055,
+      color:'#84959a'
+    });
+  }
+
+  /*
+   * perimeter status lamps
+   */
+  for (var pl = 0; pl < 6; pl++) {
+
+    lamp(
+      o.x + 0.70 + pl * ((W - 1.40) / 5),
+      o.y + 0.28,
+      top,
+      0.035,
+      true,
+      pl === 3 ? amber : green,
+      1.4
+    );
+  }
+
+  /*
+   * machine identity
+   */
+  stencil(
+    o.x + 0.44,
+    o.y + 0.30,
+    top + 0.04,
+    'REVIEW DISPATCH DESK',
+    {
+      size:4.0,
+      color:'rgba(205,220,225,0.62)'
+    }
+  );
+}
+
   function drawExternalApi(o) {
-    var b = drawSideBase(o, 'externalapi'), sf = b.sf, top = b.top, cs = b.cs;
+  /*
+   * ---------------------------------------------------------------
+   * ep-conduct-external-api
+   *
+   * EXTERNAL API BORDER / CHECKPOINT
+   *
+   * External requests cross the factory boundary here.
+   *
+   *   EXTERNAL WORLD
+   *          |
+   *      AUDIT STAMP
+   *          |
+   *      OAuth / JWT
+   *          |
+   *       TURNSTILE
+   *          |
+   *     API ROUTER
+   *       /     \
+   *      /       \
+   * ENTITLEMENTS  BULK ACTIONS
+   *
+   * The machine deliberately remains open rather than becoming
+   * another enclosed building. The boundary crossing is the
+   * primary visual element.
+   * ---------------------------------------------------------------
+   */
 
-    ribs(o.x + 0.3, o.x + o.w - 0.3, sf, b.deck + 0.20, o.h - 0.9, 5);
 
-    /* audit stamp at the entrance — first thing that happens */
-    var ax = o.x + o.w / 2, ay = o.y + o.d + 0.95;
-    Iso.box(ctx, { x: ax - 0.18, y: ay - 0.14, z: 0, w: 0.36, d: 0.28, h: 0.30, color: M.ironD });
-    stencil(ax - 0.24, ay + 0.34, 0.05, 'AUDIT', { size: 3.8, color: 'rgba(230,200,120,0.6)' });
+   /* ===============================================================
+   * BESPOKE MACHINE PLINTH
+   * =============================================================== */
 
-    /* badge/OAuth checkpoint post, then the turnstile */
-    var px = o.x + o.w / 2, py = o.y + o.d + 0.55;
-    Iso.cylinder(ctx, { x: px, y: py, z: 0, r: 0.09, h: 0.55, color: cs.plinth });
-    lamp(px, py, 0.60, 0.08, true, '#e0c060', 4.2);
-    door(o.x + o.w / 2 - 0.22, sf, b.deck + 0.16, 0.44, o.h - 0.6, cs.plinth);
+  Iso.box(ctx, {
+    x: o.x - 0.38,
+    y: o.y - 0.38,
+    z: 0,
+    w: o.w + 0.76,
+    d: o.d + 0.76,
+    h: 0.18,
+    color: '#718b96',
+    edge: 'rgba(210,230,235,0.38)'
+  });
 
-    /* two Mongo intakes: shared, site */
-    pipe(o.x - 0.5, o.y + 0.6, o.x, o.y + 0.6, b.deck + 0.1, 0.10, '#5a9060');
-    pipe(o.x - 0.5, o.y + 1.3, o.x, o.y + 1.3, b.deck + 0.1, 0.10, '#8a6a30');
+  Iso.box(ctx, {
+    x: o.x - 0.22,
+    y: o.y - 0.22,
+    z: 0.18,
+    w: o.w + 0.44,
+    d: o.d + 0.44,
+    h: 0.10,
+    color: '#536d78'
+  });
 
-    /* pressure gauge + relief valve — the queue-capacity circuit breaker */
-    var gx = o.x + o.w - 0.6, gy = o.y + 0.5;
-    Iso.cylinder(ctx, { x: gx, y: gy, z: top, r: 0.16, h: 0.08, color: M.steel });
-    var gp = P(gx, gy, top + 0.09);
-    ctx.strokeStyle = 'rgba(200,60,50,0.85)'; ctx.lineWidth = 1.4;
-    ctx.beginPath(); ctx.arc(gp.x, gp.y, 6, 0, 4.6); ctx.stroke();
+  /* foundation anchor points */
+  [
+    [o.x + 0.28, o.y + 0.28],
+    [o.x + o.w - 0.28, o.y + 0.28],
+    [o.x + 0.28, o.y + o.d - 0.28],
+    [o.x + o.w - 0.28, o.y + o.d - 0.28]
+  ].forEach(function(p) {
 
-    /* ticket dispenser for the async bulk-action poll */
-    readout(o.x + o.w - 1.65, sf, o.h - 0.64, 1.35, 0.30, ['NOW SERVING 214'], { size: 5.0, color: '#e0a860' });
+    Iso.box(ctx, {
+      x: p[0] - 0.11,
+      y: p[1] - 0.11,
+      z: 0.28,
+      w: 0.22,
+      d: 0.22,
+      h: 0.05,
+      color: '#81969d'
+    });
+
+    Iso.cylinder(ctx, {
+      x: p[0],
+      y: p[1],
+      z: 0.34,
+      r: 0.035,
+      h: 0.035,
+      color: '#c3a94d'
+    });
+  });
+
+   /* ===============================================================
+   * BESPOKE MACHINE FOUNDATION
+   * No generic side-service building.
+   * =============================================================== */
+
+  var deck = 0.30;
+
+  var b = {
+    sf: o.y + o.d + 0.01,
+    top: o.h + 0.30,
+    deck: deck,
+    cs: {
+      body: '#40546d',
+      plinth: '#536d78'
+    }
+  };
+
+  var sf = b.sf;
+  var top = b.top;
+  var cs = b.cs;
+
+  var W = o.w;
+  var D = o.d;
+
+  var steel = '#6f8087';
+  var steelDark = '#35444b';
+  var steelLight = '#87969b';
+
+  var dark = '#1e292e';
+  var dark2 = '#29373d';
+
+  var gateBlue = '#557c9a';
+  var cyan = '#78b9d4';
+  var green = '#70c58a';
+  var amber = '#dfb254';
+  var red = '#c85b52';
+
+  /*
+   * ===============================================================
+   * 1. OPEN EXTERNAL BOUNDARY FRAME
+   * ===============================================================
+   *
+   * A tall frame deliberately extends beyond the normal machinery
+   * silhouette. It visually establishes the factory perimeter.
+   */
+
+  var boundaryX = o.x + W * 0.50;
+  var boundaryY = o.y + D + 0.58;
+
+  Iso.box(ctx, {
+    x:boundaryX - 2.65,
+    y:boundaryY - 0.12,
+    z:0,
+    w:0.24,
+    d:0.30,
+    h:o.h + 1.10,
+    color:steel,
+    edge:'rgba(190,215,225,0.34)'
+  });
+
+  Iso.box(ctx, {
+    x:boundaryX + 2.41,
+    y:boundaryY - 0.12,
+    z:0,
+    w:0.24,
+    d:0.30,
+    h:o.h + 1.10,
+    color:steel,
+    edge:'rgba(190,215,225,0.34)'
+  });
+
+  Iso.box(ctx, {
+    x:boundaryX - 2.55,
+    y:boundaryY - 0.16,
+    z:o.h + 0.94,
+    w:5.10,
+    d:0.30,
+    h:0.18,
+    color:steelLight
+  });
+
+  /*
+   * Boundary warning lamps.
+   */
+  [boundaryX - 2.15, boundaryX - 0.72, boundaryX + 0.72, boundaryX + 2.15]
+    .forEach(function(x, i) {
+
+      lamp(
+        x,
+        boundaryY - 0.20,
+        o.h + 1.03,
+        0.055,
+        true,
+        i === 1 ? amber : cyan,
+        2.5
+      );
+    });
+
+  stencil(
+    boundaryX - 1.28,
+    boundaryY - 0.34,
+    o.h + 1.16,
+    'EXTERNAL API',
+    {
+      size:5.0,
+      color:'rgba(205,225,232,0.78)'
+    }
+  );
+
+  /*
+   * ===============================================================
+   * 2. AUDIT STAMP
+   * ===============================================================
+   *
+   * Every request is audited before routing.
+   */
+
+  var ax = boundaryX;
+  var ay = boundaryY + 0.42;
+
+  Iso.box(ctx, {
+    x:ax - 0.42,
+    y:ay - 0.22,
+    z:deck,
+    w:0.84,
+    d:0.44,
+    h:0.28,
+    color:dark
+  });
+
+  /*
+   * stamp cylinder
+   */
+  Iso.cylinder(ctx, {
+    x:ax,
+    y:ay - 0.03,
+    z:deck + 0.30,
+    r:0.17,
+    h:0.10,
+    color:steelLight
+  });
+
+  /*
+   * audit stamping head
+   */
+  Iso.box(ctx, {
+    x:ax - 0.16,
+    y:ay - 0.15,
+    z:deck + 0.42,
+    w:0.32,
+    d:0.32,
+    h:0.38,
+    color:gateBlue
+  });
+
+  lamp(
+    ax,
+    ay - 0.20,
+    deck + 0.86,
+    0.06,
+    true,
+    amber,
+    3.2
+  );
+
+  stencil(
+    ax - 0.34,
+    ay + 0.38,
+    deck + 0.82,
+    'AUDIT',
+    {
+      size:3.9,
+      color:'rgba(225,200,125,0.78)'
+    }
+  );
+
+  /*
+   * ===============================================================
+   * 3. OAUTH / JWT BADGE CHECKPOINT
+   * ===============================================================
+   */
+
+  var bx = boundaryX - 0.95;
+  var by = boundaryY - 0.08;
+
+  /*
+   * scanner pedestal
+   */
+  Iso.box(ctx, {
+    x:bx - 0.25,
+    y:by - 0.18,
+    z:deck,
+    w:0.50,
+    d:0.36,
+    h:0.22,
+    color:steelDark
+  });
+
+  /*
+   * scanner post
+   */
+  Iso.box(ctx, {
+    x:bx - 0.08,
+    y:by - 0.12,
+    z:deck + 0.22,
+    w:0.16,
+    d:0.16,
+    h:0.92,
+    color:steel
+  });
+
+  /*
+   * badge reader
+   */
+  Iso.box(ctx, {
+    x:bx - 0.18,
+    y:by - 0.22,
+    z:deck + 0.58,
+    w:0.36,
+    d:0.08,
+    h:0.30,
+    color:dark
+  });
+
+  lamp(
+    bx,
+    by - 0.27,
+    deck + 0.74,
+    0.065,
+    true,
+    green,
+    3.8
+  );
+
+  stencil(
+    bx - 0.46,
+    by + 0.34,
+    deck + 1.18,
+    'OAUTH / JWT',
+    {
+      size:3.3,
+      color:'rgba(185,215,225,0.70)'
+    }
+  );
+
+  /*
+   * ===============================================================
+   * 4. PHYSICAL TURNSTILE
+   * ===============================================================
+   */
+
+  var tx = boundaryX + 0.82;
+  var ty = boundaryY - 0.08;
+
+  Iso.cylinder(ctx, {
+    x:tx,
+    y:ty,
+    z:deck,
+    r:0.20,
+    h:0.18,
+    color:steelDark
+  });
+
+  Iso.cylinder(ctx, {
+    x:tx,
+    y:ty,
+    z:deck + 0.18,
+    r:0.11,
+    h:0.62,
+    color:steel
+  });
+
+  /*
+   * three turnstile arms
+   */
+  for (var ta = 0; ta < 3; ta++) {
+
+    var armX = tx + (ta === 0 ? -0.42 : ta === 1 ? 0.42 : 0);
+    var armY = ty + (ta === 0 ? 0.12 : ta === 1 ? 0.12 : -0.42);
+
+    Iso.box(ctx, {
+      x:Math.min(tx, armX),
+      y:Math.min(ty, armY),
+      z:deck + 0.50,
+      w:Math.max(Math.abs(armX - tx), 0.06),
+      d:Math.max(Math.abs(armY - ty), 0.06),
+      h:0.06,
+      color:steelLight
+    });
   }
+
+  lamp(
+    tx,
+    ty,
+    deck + 0.88,
+    0.06,
+    true,
+    green,
+    3.0
+  );
+
+  stencil(
+    tx - 0.36,
+    ty + 0.45,
+    deck + 0.98,
+    'AUTHORIZED',
+    {
+      size:3.1,
+      color:'rgba(115,205,140,0.72)'
+    }
+  );
+
+  /*
+   * ===============================================================
+   * 5. API ROUTING CHAMBER
+   * ===============================================================
+   */
+
+  var routerX = o.x + W * 0.50;
+  var routerY = o.y + D * 0.42;
+
+  /*
+   * open central routing frame
+   */
+  Iso.box(ctx, {
+    x:routerX - 1.62,
+    y:routerY - 0.52,
+    z:deck,
+    w:3.24,
+    d:1.04,
+    h:0.20,
+    color:steelDark
+  });
+
+  /*
+   * rear routing housing
+   */
+  Iso.box(ctx, {
+    x:routerX - 1.35,
+    y:routerY + 0.12,
+    z:deck + 0.20,
+    w:2.70,
+    d:0.22,
+    h:1.35,
+    color:dark,
+    edge:'rgba(160,195,210,0.32)'
+  });
+
+  /*
+   * routing wheel
+   */
+  Iso.cylinder(ctx, {
+    x:routerX,
+    y:routerY - 0.34,
+    z:deck + 0.64,
+    r:0.52,
+    h:0.16,
+    color:gateBlue
+  });
+
+  Iso.cylinder(ctx, {
+    x:routerX,
+    y:routerY - 0.34,
+    z:deck + 0.80,
+    r:0.22,
+    h:0.10,
+    color:steelLight
+  });
+
+  /*
+   * routing spokes
+   */
+  for (var sp = 0; sp < 6; sp++) {
+
+    var sx = routerX + Math.cos(sp * Math.PI / 3) * 0.34;
+    var sy = routerY - 0.34 + Math.sin(sp * Math.PI / 3) * 0.34;
+
+    Iso.box(ctx, {
+      x:sx - 0.035,
+      y:sy - 0.035,
+      z:deck + 0.90,
+      w:0.07,
+      d:0.07,
+      h:0.16,
+      color:steelLight
+    });
+  }
+
+  /*
+   * routing status lamps
+   */
+  [
+    [-0.62, green],
+    [-0.21, cyan],
+    [0.21, amber],
+    [0.62, green]
+  ].forEach(function(l) {
+
+    lamp(
+      routerX + l[0],
+      routerY + 0.26,
+      deck + 1.28,
+      0.05,
+      true,
+      l[1],
+      2.2
+    );
+  });
+
+  stencil(
+    routerX - 0.52,
+    routerY + 0.50,
+    deck + 1.48,
+    'API ROUTER',
+    {
+      size:4.5,
+      color:'rgba(190,220,230,0.76)'
+    }
+  );
+
+  /*
+   * ===============================================================
+   * 6. SHARED / SITE MONGO INTAKES
+   * ===============================================================
+   */
+
+  var mongoX = o.x - 0.30;
+
+  pipe(
+    o.x - 0.55,
+    o.y + 0.62,
+    o.x + 0.05,
+    o.y + 0.62,
+    deck + 0.10,
+    0.10,
+    '#5a9060'
+  );
+
+  pipe(
+    o.x - 0.55,
+    o.y + 1.32,
+    o.x + 0.05,
+    o.y + 1.32,
+    deck + 0.10,
+    0.10,
+    '#8a6a30'
+  );
+
+  lamp(
+    mongoX + 0.35,
+    o.y + 0.62,
+    deck + 0.22,
+    0.045,
+    true,
+    green,
+    2.0
+  );
+
+  lamp(
+    mongoX + 0.35,
+    o.y + 1.32,
+    deck + 0.22,
+    0.045,
+    true,
+    amber,
+    2.0
+  );
+
+  stencil(
+    o.x - 0.15,
+    o.y + 0.62,
+    deck + 0.30,
+    'SHARED',
+    {
+      size:3.1,
+      color:'rgba(125,205,140,0.68)'
+    }
+  );
+
+  stencil(
+    o.x - 0.15,
+    o.y + 1.32,
+    deck + 0.30,
+    'SITE',
+    {
+      size:3.1,
+      color:'rgba(215,175,85,0.68)'
+    }
+  );
+
+  /*
+   * ===============================================================
+   * 7. CIRCUIT BREAKER / QUEUE PRESSURE GAUGE
+   * ===============================================================
+   */
+
+  var gx = o.x + W - 1.05;
+  var gy = o.y + 0.72;
+
+  /*
+   * gauge housing
+   */
+  Iso.cylinder(ctx, {
+    x:gx,
+    y:gy,
+    z:top + 0.04,
+    r:0.34,
+    h:0.12,
+    color:steel
+  });
+
+  /*
+   * gauge face
+   */
+  Iso.cylinder(ctx, {
+    x:gx,
+    y:gy - 0.02,
+    z:top + 0.16,
+    r:0.27,
+    h:0.025,
+    color:'#172126'
+  });
+
+  /*
+   * gauge ticks
+   */
+  for (var gt = 0; gt < 7; gt++) {
+
+    var ga = -1.10 + gt * 0.36;
+
+    lamp(
+      gx + Math.cos(ga) * 0.20,
+      gy + Math.sin(ga) * 0.20,
+      top + 0.20,
+      0.025,
+      true,
+      gt >= 5 ? red : gt >= 4 ? amber : green,
+      1.0
+    );
+  }
+
+  /*
+   * gauge needle
+   */
+  Iso.box(ctx, {
+    x:gx - 0.025,
+    y:gy - 0.15,
+    z:top + 0.22,
+    w:0.05,
+    d:0.25,
+    h:0.035,
+    color:red
+  });
+
+  stencil(
+    gx - 0.62,
+    gy + 0.52,
+    top + 0.18,
+    'QUEUE PRESSURE',
+    {
+      size:3.2,
+      color:'rgba(210,220,215,0.62)'
+    }
+  );
+
+  /*
+   * relief valve
+   */
+  Iso.cylinder(ctx, {
+    x:gx + 0.52,
+    y:gy,
+    z:top + 0.08,
+    r:0.12,
+    h:0.16,
+    color:amber
+  });
+
+  Iso.box(ctx, {
+    x:gx + 0.47,
+    y:gy - 0.03,
+    z:top + 0.24,
+    w:0.10,
+    d:0.18,
+    h:0.20,
+    color:steelDark
+  });
+
+  stencil(
+    gx + 0.30,
+    gy + 0.30,
+    top + 0.46,
+    'RELIEF',
+    {
+      size:3.0,
+      color:'rgba(220,180,90,0.68)'
+    }
+  );
+
+  /*
+   * ===============================================================
+   * 8. BULK JOB TICKET DISPENSER
+   * ===============================================================
+   */
+
+  var ticketX = o.x + W - 1.62;
+  var ticketY = o.y + D - 0.42;
+
+  Iso.box(ctx, {
+    x:ticketX - 0.42,
+    y:ticketY - 0.25,
+    z:deck,
+    w:0.84,
+    d:0.50,
+    h:0.72,
+    color:steelDark,
+    edge:'rgba(180,205,215,0.30)'
+  });
+
+  /*
+   * ticket slot
+   */
+  Iso.box(ctx, {
+    x:ticketX - 0.26,
+    y:ticketY - 0.32,
+    z:deck + 0.48,
+    w:0.52,
+    d:0.035,
+    h:0.07,
+    color:'#10181b'
+  });
+
+  /*
+   * printed ticket
+   */
+  Iso.box(ctx, {
+    x:ticketX - 0.19,
+    y:ticketY - 0.34,
+    z:deck + 0.20,
+    w:0.38,
+    d:0.025,
+    h:0.30,
+    color:'#d9c995'
+  });
+
+  stencil(
+    ticketX - 0.15,
+    ticketY - 0.37,
+    deck + 0.45,
+    'JOB',
+    {
+      size:3.1,
+      color:'rgba(45,55,55,0.78)'
+    }
+  );
+
+  stencil(
+    ticketX - 0.32,
+    ticketY + 0.34,
+    deck + 0.82,
+    'BULK JOB',
+    {
+      size:3.5,
+      color:'rgba(220,180,95,0.72)'
+    }
+  );
+
+  /*
+   * ===============================================================
+   * 9. OUTBOUND ROUTING CONDUITS
+   * ===============================================================
+   */
+
+  var outX = o.x + W + 0.20;
+
+  /*
+   * entitlement route
+   */
+  configBeam(
+    routerX + 1.30,
+    routerY + 0.15,
+    deck + 0.78,
+    outX,
+    routerY + 0.15,
+    deck + 0.78,
+    0.085,
+    cyan
+  );
+
+  /*
+   * bulk action route
+   */
+  configBeam(
+    routerX + 1.30,
+    routerY - 0.20,
+    deck + 0.62,
+    outX,
+    routerY - 0.62,
+    deck + 0.62,
+    0.085,
+    amber
+  );
+
+  lamp(
+    outX,
+    routerY + 0.15,
+    deck + 0.78,
+    0.045,
+    true,
+    cyan,
+    2.5
+  );
+
+  lamp(
+    outX,
+    routerY - 0.62,
+    deck + 0.62,
+    0.045,
+    true,
+    amber,
+    2.5
+  );
+
+  stencil(
+    outX - 0.62,
+    routerY + 0.43,
+    deck + 0.90,
+    'ENTITLEMENTS',
+    {
+      size:3.2,
+      color:'rgba(125,195,220,0.70)'
+    }
+  );
+
+  stencil(
+    outX - 0.52,
+    routerY - 0.83,
+    deck + 0.70,
+    'BULK ACTIONS',
+    {
+      size:3.2,
+      color:'rgba(220,175,80,0.70)'
+    }
+  );
+
+  /*
+   * ===============================================================
+   * 10. PHYSICAL API HMI
+   * ===============================================================
+   */
+
+  var hx = o.x + 1.05;
+  var hy = o.y + D - 0.32;
+
+  /*
+   * HMI pedestal
+   */
+  Iso.box(ctx, {
+    x:hx - 0.66,
+    y:hy - 0.12,
+    z:deck,
+    w:1.32,
+    d:0.52,
+    h:0.48,
+    color:steelDark
+  });
+
+  /*
+   * support
+   */
+  Iso.box(ctx, {
+    x:hx - 0.08,
+    y:hy + 0.02,
+    z:deck + 0.48,
+    w:0.16,
+    d:0.16,
+    h:0.82,
+    color:steel
+  });
+
+  /*
+   * enclosure
+   */
+  Iso.box(ctx, {
+    x:hx - 0.60,
+    y:hy - 0.04,
+    z:deck + 1.22,
+    w:1.20,
+    d:0.28,
+    h:0.72,
+    color:dark,
+    edge:'rgba(180,210,220,0.38)'
+  });
+
+  /*
+   * bezel
+   */
+  Iso.box(ctx, {
+    x:hx - 0.51,
+    y:hy - 0.20,
+    z:deck + 1.29,
+    w:1.02,
+    d:0.05,
+    h:0.54,
+    color:steelLight
+  });
+
+  /*
+   * screen
+   */
+  Iso.box(ctx, {
+    x:hx - 0.44,
+    y:hy - 0.24,
+    z:deck + 1.36,
+    w:0.88,
+    d:0.018,
+    h:0.38,
+    color:'#10191d'
+  });
+
+  stencil(
+    hx - 0.38,
+    hy - 0.27,
+    deck + 1.68,
+    'API GATE',
+    {
+      size:3.8,
+      color:'rgba(145,210,190,0.94)'
+    }
+  );
+
+  stencil(
+    hx - 0.38,
+    hy - 0.27,
+    deck + 1.57,
+    'AUTH     OK',
+    {
+      size:3.1,
+      color:'rgba(200,220,220,0.84)'
+    }
+  );
+
+  stencil(
+    hx - 0.38,
+    hy - 0.27,
+    deck + 1.46,
+    'QUEUE    42',
+    {
+      size:3.1,
+      color:'rgba(200,220,220,0.84)'
+    }
+  );
+
+  /*
+   * physical control strip
+   */
+  Iso.box(ctx, {
+    x:hx - 0.51,
+    y:hy - 0.29,
+    z:deck + 1.00,
+    w:1.02,
+    d:0.05,
+    h:0.13,
+    color:'#20292d'
+  });
+
+  [0,1,2].forEach(function(i) {
+
+    lamp(
+      hx - 0.34 + i * 0.25,
+      hy - 0.33,
+      deck + 1.07,
+      0.042,
+      true,
+      i === 2 ? amber : green,
+      2.0
+    );
+  });
+
+  /*
+   * ===============================================================
+   * 11. PHYSICAL DETAILING
+   * ===============================================================
+   */
+
+  /*
+   * structural ribs
+   */
+  for (var rib = 0; rib < 5; rib++) {
+
+    Iso.box(ctx, {
+      x:o.x + 0.70 + rib * ((W - 1.40) / 4),
+      y:o.y + 0.46,
+      z:deck + 0.02,
+      w:0.045,
+      d:D - 0.92,
+      h:0.06,
+      color:'rgba(145,170,178,0.72)'
+    });
+  }
+
+  /*
+   * floor boundary markers
+   */
+  for (var marker = 0; marker < 6; marker++) {
+
+    Iso.box(ctx, {
+      x:o.x + 0.60 + marker * ((W - 1.20) / 5),
+      y:o.y + D + 0.02,
+      z:deck + 0.02,
+      w:0.12,
+      d:0.08,
+      h:0.025,
+      color:marker % 2 ? amber : steel
+    });
+  }
+
+  /*
+   * identity stencil
+   */
+  stencil(
+    o.x + 0.42,
+    o.y + 0.28,
+    top + 0.04,
+    'EP-CONDUCT',
+    {
+      size:3.8,
+      color:'rgba(205,220,225,0.58)'
+    }
+  );
+}
 
   function drawActioningService(o) {
   /*
