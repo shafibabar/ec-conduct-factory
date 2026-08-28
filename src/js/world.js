@@ -45,9 +45,15 @@
      [6]=64 quota (on the turn), [8]=80 alerting, [9]=90 echo, [10]=100 indexer,
      total 106 with a short run-out past the last machine. */
   var BELT = makeRoute([
-    [6,8],[14,8],[24,8],[34,8],[44,8],[60,8],
-    [60,18],[60,28],
-    [54,28],[44,28],[34,28],[28,28]
+    [6,8],
+  [14,8],
+  [24,8],
+  [34,8],
+  [44,8],
+  [60,8],
+  [60,18],
+  [60,28],
+  [54,28]
   ]);
 
   /* ---- palette ----------------------------------------------------------- */
@@ -80,16 +86,32 @@
        from the archive mast at x 8.5 to the watermark standpipe at x 18.7,
        and buildProps() must keep the whole assembly clear. render.js draws
        it from explicit coordinates. */
-    { id:'gateway',   dist: BELT.cum[1],  x:14, y:2,  w:10.4,d:5.2,h:3.3, kind:'machine', dwell:1.6, color:C.gateway },
+    { id:'gateway',
+    dist: BELT.cum[1],
+    x:12, y:12,
+    w:10.4,d:5.2,h:3.3,
+    kind:'machine', dwell:1.6, color:C.gateway },
     /* Reserved floor area, not the casing — the comparator runs from the
        S3 riser at x 20.1 to the receipt duct at x 26.8. */
-    { id:'qualifier', dist: BELT.cum[2],  x:24, y:2,  w:8.5,d:5.2,h:3.0, kind:'machine', dwell:1.4, color:C.qualifier },
+    { id:'qualifier',
+    dist: BELT.cum[2],
+    x:23, y:12,
+    w:8.5,d:5.2,h:3.0,
+    kind:'machine', dwell:1.4, color:C.qualifier },
     /* Reserved floor area: the screening line runs from the S3 riser at
        x 29.9 to the receipt duct at x 37.3. */
-    { id:'filter',    dist: BELT.cum[3],  x:34, y:2,  w:9.0,d:5.2,h:3.0, kind:'machine', dwell:1.4, color:C.filter },
+    { id:'filter',
+    dist: BELT.cum[3],
+    x:34, y:12,
+    w:9.0,d:5.2,h:3.0,
+    kind:'machine', dwell:1.4, color:C.filter },
     /* Reserved floor area: the router runs from the splitter at x 39.9 to
        the receipt duct at x 47.3, with the COMS return line above it. */
-    { id:'evaluator', dist: BELT.cum[4],  x:44, y:2,  w:9.0,d:5.2,h:3.0, kind:'machine', dwell:1.8, color:C.evaluator },
+    { id:'evaluator',
+    dist: BELT.cum[4],
+    x:45, y:12,
+    w:9.0,d:5.2,h:3.0,
+    kind:'machine', dwell:1.8, color:C.evaluator },
     /* Moved north of the belt with the rest of the upstream row. It used to
        stand at y 12 — south of the line, where a solid can occlude the
        carrier — and it is the one station the carrier is diverted AT, so
@@ -98,7 +120,11 @@
        smaller x+y key, so it is drawn before the carrier and is safe at any
        size — FLOOR-TOPOLOGY.md D6. The machine itself is unrotated; only its
        transfer bays turn, to axis 'x'. */
-    { id:'quota',     dist: BELT.cum[6],  x:53, y:16.3, w:9.0,d:5.2,h:3.0, kind:'gate',    dwell:1.6, color:C.quota },
+    { id:'quota',
+    dist: BELT.cum[6],
+    x:53, y:20,
+    w:9.0,d:5.2,h:3.0,
+    kind:'gate', dwell:1.6, color:C.quota },
     /* South of their run, which is the side that has to earn its place: a
        machine north of a belt is drawn before the carrier and is safe at any
        height, one south of it is drawn after and can paint over the carrier.
@@ -106,10 +132,39 @@
        first-pass 5x3 clears anything under 5.4 units and a rebuilt 9x5.2 clears
        anything under 4.6. They were at y 32, where the rebuilt size would not
        have cleared at all. */
-    { id:'alerting',  dist: BELT.cum[8],  x:54, y:36, w:9.0,d:6.6,h:3.0, kind:'machine', dwell:1.6, color:C.alerting },
-    { id:'echo',      dist: BELT.cum[9],  x:44, y:36, w:9.0,d:6.6,h:3.0, kind:'machine', dwell:1.2, color:C.echo },
-    { id:'indexer',   dist: BELT.cum[10], x:34, y:36, w:9.0,d:7.6,h:3.0, kind:'machine', dwell:1.2, color:C.indexer }
+    
+       { id:'alerting',
+    dist: BELT.cum[8],
+    x:53, y:31,
+    w:9.0,d:6.6,h:3.0,
+    kind:'machine', dwell:1.6, color:C.alerting }
   ];
+
+  var DOWNSTREAM_STRUCTS = [
+  {
+    id:'echo',
+    x:43,
+    y:29,
+    w:9,
+    d:6.6,
+    h:3.5,
+    color:C.echo,
+    label:'ec-echo-engine',
+    sublabel:'alert deduplication'
+  },
+
+  {
+    id:'indexer',
+    x:31,
+    y:29,
+    w:9,
+    d:7.6,
+    h:3.5,
+    color:C.indexer,
+    label:'ec-indexer',
+    sublabel:'Elasticsearch bulk indexing'
+  }
+];
 
   /* ---- off the belt ------------------------------------------------------
    * The record keepers. They consume events ABOUT the communication, so the
@@ -121,10 +176,29 @@
    * OFFBELT_DRAW and they are never fired by the simulation.
    * -------------------------------------------------------------------- */
   var OFFBELT = [
-    { id:'audit',     x:32, y:19.2, w:6.8,d:4.0,h:6.6, color:C.audit,
-      label:'audit',     sublabel:'ec-centralised-audit · the tower' },
-    { id:'reporting', x:22, y:21.5, w:5,d:3,h:3, color:C.reporting,
-      label:'reporting', sublabel:'ec-reporting' }
+    {
+    id:'audit',
+    x:29,
+    y:20,
+    w:7.5,
+    d:4.8,
+    h:6.6,
+    color:C.audit,
+    label:'audit',
+    sublabel:'ec-centralised-audit · the tower'
+  },
+
+    {
+    id:'reporting',
+    x:20,
+    y:24,
+    w:5,
+    d:3,
+    h:3,
+    color:C.reporting,
+    label:'reporting',
+    sublabel:'ec-reporting'
+  }
   ];
 
   var STATION_IDX_BY_ID = {};
@@ -133,16 +207,22 @@
   /* ---- side structures (6 off-belt repos) -------------------------------- */
 
   var SIDE_STRUCTS = [
-  { id:'portal',
-    x:4, y:25, w:9,d:5.5,h:3.5,
+  {
+    id:'portal',
+    x:42,
+    y:43,
+    w:9,
+    d:5.5,
+    h:3.5,
     color:C.portal,
     label:'ea-ui-portal',
-    sublabel:'reviewer portal · Flow G' },
+    sublabel:'reviewer portal · Flow G'
+  },
 
   {
     id:'reviewservice',
-    x:17,
-    y:25,
+    x:31,
+    y:43,
     w:9,
     d:6,
     h:3.4,
@@ -153,8 +233,8 @@
 
   {
     id:'actioningservice',
-    x:30,
-    y:25,
+    x:42,
+    y:34,
     w:9,
     d:7.5,
     h:3.6,
@@ -163,23 +243,41 @@
     sublabel:'disposition executor'
   },
 
-  { id:'externalapi',
-    x:4, y:36.5, w:9,d:5.5,h:3,
+  {
+    id:'externalapi',
+    x:20,
+    y:43,
+    w:9,
+    d:5.5,
+    h:3,
     color:C.externalapi,
     label:'ep-conduct-external-api',
-    sublabel:'external API gateway' },
+    sublabel:'external API gateway'
+  },
 
-  { id:'manualruns',
-    x:17, y:37, w:9,d:5.5,h:3.2,
+  {
+    id:'manualruns',
+    x:31,
+    y:11,
+    w:7,
+    d:5.5,
+    h:3.2,
     color:C.manualruns,
     label:'ec-manual-runs-service',
-    sublabel:'re-processing · Flow F' },
+    sublabel:'re-processing · Flow F'
+  },
 
-  { id:'config',
-    x:30, y:37, w:9,d:6.5,h:4.0,
+  {
+    id:'config',
+    x:31,
+    y:34,
+    w:8.8,
+    d:6.5,
+    h:4,
     color:C.config,
     label:'ec-config-curator',
-    sublabel:'configuration control · Flow E' }
+    sublabel:'configuration control · Flow E'
+  }
 ];
 
   var SIDE_STRUCTS_BY_ID = {};
