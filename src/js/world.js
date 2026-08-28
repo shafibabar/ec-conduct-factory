@@ -164,10 +164,10 @@
     sublabel:'re-processing · Flow F' },
 
   { id:'config',
-    x:14, y:37.5, w:7,d:5.5,h:3.3,
+    x:14, y:37.5, w:8.8,d:6.5,h:4.0,
     color:C.config,
     label:'ec-config-curator',
-    sublabel:'control room · Flow E' }
+    sublabel:'configuration control · Flow E' }
 ];
 
   var SIDE_STRUCTS_BY_ID = {};

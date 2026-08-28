@@ -3361,6 +3361,188 @@ function drawClusterLinks() {
 
   function drawSideStruct(o) { sideShell(o); }
 
+  /* -------------------------------------------------------------------------
+ * Raised architectural plinth for exposed side machinery.
+ *
+ * This is deliberately NOT a building shell.
+ * It establishes ownership of the floor space and gives exposed machinery
+ * a substantial architectural presence.
+ *
+ * The machinery remains completely visible above it.
+ * ------------------------------------------------------------------------- */
+function drawMachineryPlinth(o, id, opts) {
+  opts = opts || {};
+
+  var cs = casing(id);
+
+  var padX = opts.padX !== undefined ? opts.padX : 0.55;
+  var padY = opts.padY !== undefined ? opts.padY : 0.55;
+
+  var x = o.x - padX;
+  var y = o.y - padY;
+  var w = o.w + padX * 2;
+  var d = o.d + padY * 2;
+
+  var baseH = opts.baseH !== undefined ? opts.baseH : 0.22;
+  var stepH = opts.stepH !== undefined ? opts.stepH : 0.10;
+
+  var baseColor = opts.baseColor || '#18251b';
+  var edgeColor = opts.edgeColor || '#34543a';
+  var deckColor = opts.deckColor || '#263c2b';
+  var metalColor = opts.metalColor || '#69736d';
+
+  /* ---------------------------------------------------------------
+   * LOWER FOUNDATION
+   * --------------------------------------------------------------- */
+
+  Iso.box(ctx, {
+    x:x,
+    y:y,
+    z:0,
+    w:w,
+    d:d,
+    h:baseH,
+    color:baseColor,
+    edge:'rgba(8,12,10,0.75)'
+  });
+
+  /* ---------------------------------------------------------------
+   * STEPPED DECK
+   * --------------------------------------------------------------- */
+
+  Iso.box(ctx, {
+    x:x + 0.20,
+    y:y + 0.20,
+    z:baseH,
+    w:w - 0.40,
+    d:d - 0.40,
+    h:stepH,
+    color:deckColor,
+    edge:'rgba(15,22,17,0.75)'
+  });
+
+  /* ---------------------------------------------------------------
+   * RAISED PERIMETER KERB
+   * --------------------------------------------------------------- */
+
+  var kerb = 0.16;
+  var kerbH = 0.12;
+  var z = baseH + stepH;
+
+  /* front */
+  Iso.box(ctx, {
+    x:x + 0.20,
+    y:y + 0.20,
+    z:z,
+    w:w - 0.40,
+    d:kerb,
+    h:kerbH,
+    color:edgeColor
+  });
+
+  /* rear */
+  Iso.box(ctx, {
+    x:x + 0.20,
+    y:y + d - 0.20 - kerb,
+    z:z,
+    w:w - 0.40,
+    d:kerb,
+    h:kerbH,
+    color:edgeColor
+  });
+
+  /* left */
+  Iso.box(ctx, {
+    x:x + 0.20,
+    y:y + 0.20,
+    z:z,
+    w:kerb,
+    d:d - 0.40,
+    h:kerbH,
+    color:edgeColor
+  });
+
+  /* right */
+  Iso.box(ctx, {
+    x:x + w - 0.20 - kerb,
+    y:y + 0.20,
+    z:z,
+    w:kerb,
+    d:d - 0.40,
+    h:kerbH,
+    color:edgeColor
+  });
+
+  /* ---------------------------------------------------------------
+   * CORNER ANCHOR PLATES
+   * --------------------------------------------------------------- */
+
+  var anchors = [
+    [x + 0.46,       y + 0.46],
+    [x + w - 0.46,   y + 0.46],
+    [x + 0.46,       y + d - 0.46],
+    [x + w - 0.46,   y + d - 0.46]
+  ];
+
+  anchors.forEach(function (a) {
+    Iso.box(ctx, {
+      x:a[0] - 0.16,
+      y:a[1] - 0.16,
+      z:z + kerbH,
+      w:0.32,
+      d:0.32,
+      h:0.06,
+      color:metalColor
+    });
+
+    Iso.cylinder(ctx, {
+      x:a[0],
+      y:a[1],
+      z:z + kerbH + 0.06,
+      r:0.045,
+      h:0.05,
+      color:'#b7aa6a'
+    });
+  });
+
+  /* ---------------------------------------------------------------
+   * EDGE LIGHT / IDENTITY STRIP
+   *
+   * Very restrained. It distinguishes the machine platform without
+   * turning the plinth into a glowing platform.
+   * --------------------------------------------------------------- */
+
+  lamp(
+    x + w * 0.50,
+    y + 0.10,
+    z + kerbH + 0.025,
+    0.035,
+    true,
+    '#9fcf70',
+    0.9
+  );
+
+  lamp(
+    x + w * 0.50,
+    y + d - 0.10,
+    z + kerbH + 0.025,
+    0.035,
+    true,
+    '#9fcf70',
+    0.9
+  );
+
+  return {
+    x:x,
+    y:y,
+    w:w,
+    d:d,
+    deck:z + kerbH,
+    top:z + kerbH,
+    cs:cs
+  };
+}
+
   /* ---- the six rebuilt side structures -------------------------------------
    * Rebuilt from scratch to the same three-material discipline as the belt
    * machines (casing(id): body/plinth/cap, from the LIVERY entries added for
@@ -3453,9 +3635,50 @@ function configWorld(o, lx, ly, lz) {
   };
 }
 
-function configBeam(x0, y0, z0, x1, y1, z1, width, color) {
-  pipe(x0, y0, z0, x1, y1, z1, width || 0.10, color || '#586b72');
-}
+  function configBeam(x0, y0, z0, x1, y1, z1, width, color) {
+    width = width || 0.10;
+    color = color || '#586b72';
+
+    /* Horizontal run: use the normal factory pipe. */
+    if (Math.abs(z1 - z0) < 0.001) {
+      pipe(
+        x0, y0,
+        x1, y1,
+        z0,
+        width,
+        color
+      );
+      return;
+    }
+
+    /* Vertical riser: pipe() only supports horizontal floor-plane runs,
+       so represent a vertical configuration riser as a cylinder. */
+    if (Math.abs(x1 - x0) < 0.001 && Math.abs(y1 - y0) < 0.001) {
+      var zLow = Math.min(z0, z1);
+      var zHigh = Math.max(z0, z1);
+
+      Iso.cylinder(ctx, {
+        x: x0,
+        y: y0,
+        z: zLow,
+        r: width * 0.50,
+        h: zHigh - zLow,
+        color: color
+      });
+      return;
+    }
+
+    /* Fallback for a genuinely 3D segment.
+       The current curator uses only horizontal and vertical segments,
+       but keep this safe rather than passing malformed arguments to pipe(). */
+    pipe(
+      x0, y0,
+      x1, y1,
+      z0,
+      width,
+      color
+    );
+  }
 
 function configValve(x, y, z, active, color) {
   Iso.cylinder(ctx, {
@@ -3480,41 +3703,211 @@ function configValve(x, y, z, active, color) {
     1.4
   );
 }
-  function drawConfigCurator(o) {
-    var b = sideFrame(o, 'config');
-    var cs = b.cs;
 
-    var floorZ = b.deck;
-    var top = b.top;
-    var sf = b.sf;
+function drawConfigCurator(o) {
 
   /*
-   * The service footprint is treated as an open machinery yard.
-   * There is intentionally no drawSideBase(), no casing and no roof.
+   * -------------------------------------------------------------------------
+   * ec-config-curator — exposed configuration-control machinery
    *
-   * Leave generous negative space between mechanisms. The viewer should
-   * be able to visually isolate each operation when zoomed in.
+   * The service intentionally remains an OPEN MACHINE.
+   *
+   * There is no enclosing casing, roof or monolithic building.
+   *
+   * Instead, the entire assembly now sits on a substantial architectural
+   * machinery plinth. The plinth establishes ownership of the floor space
+   * and gives the machinery a deliberate "installation" rather than making
+   * it look like objects randomly placed on the factory floor.
+   *
+   * The machinery itself remains visually dominant.
+   * -------------------------------------------------------------------------
    */
 
-  var floorZ = 0.12;
-  var steelZ = 0.30;
+  var cs = casing('config');
 
   var W = o.w;
   var D = o.d;
 
   var cx = o.x + W * 0.50;
 
-  /* ---------------------------------------------------------------
+  /* -----------------------------------------------------------------------
+   * 0. ARCHITECTURAL MACHINERY PLINTH
+   *
+   * Three visual layers:
+   *
+   *   factory floor
+   *       ↓
+   *   heavy foundation
+   *       ↓
+   *   raised machinery deck
+   *       ↓
+   *   restrained perimeter kerb
+   *
+   * This is infrastructure, not a casing.
+   * ----------------------------------------------------------------------- */
+
+  var padX = 0.65;
+  var padY = 0.65;
+
+  var px = o.x - padX;
+  var py = o.y - padY;
+  var pw = W + padX * 2;
+  var pd = D + padY * 2;
+
+  var foundationH = 0.24;
+  var deckH = 0.12;
+  var kerbH = 0.12;
+  var kerbW = 0.16;
+
+  /* heavy lower foundation */
+  Iso.box(ctx, {
+    x:px,
+    y:py,
+    z:0,
+    w:pw,
+    d:pd,
+    h:foundationH,
+    color:'#18271b'
+  });
+
+  /* inset raised machinery deck */
+  Iso.box(ctx, {
+    x:px + 0.20,
+    y:py + 0.20,
+    z:foundationH,
+    w:pw - 0.40,
+    d:pd - 0.40,
+    h:deckH,
+    color:'#263d2a'
+  });
+
+  var plinthZ = foundationH + deckH;
+
+  /* restrained perimeter kerb */
+
+  /* south / near edge */
+  Iso.box(ctx, {
+    x:px + 0.20,
+    y:py + 0.20,
+    z:plinthZ,
+    w:pw - 0.40,
+    d:kerbW,
+    h:kerbH,
+    color:'#34563a'
+  });
+
+  /* north / far edge */
+  Iso.box(ctx, {
+    x:px + 0.20,
+    y:py + pd - 0.20 - kerbW,
+    z:plinthZ,
+    w:pw - 0.40,
+    d:kerbW,
+    h:kerbH,
+    color:'#34563a'
+  });
+
+  /* west edge */
+  Iso.box(ctx, {
+    x:px + 0.20,
+    y:py + 0.20,
+    z:plinthZ,
+    w:kerbW,
+    d:pd - 0.40,
+    h:kerbH,
+    color:'#34563a'
+  });
+
+  /* east edge */
+  Iso.box(ctx, {
+    x:px + pw - 0.20 - kerbW,
+    y:py + 0.20,
+    z:plinthZ,
+    w:kerbW,
+    d:pd - 0.40,
+    h:kerbH,
+    color:'#34563a'
+  });
+
+  /*
+   * Four anchor plates.
+   *
+   * These make the plinth read as engineered infrastructure rather than
+   * simply a coloured rectangle underneath the machinery.
+   */
+  [
+    [px + 0.46, py + 0.46],
+    [px + pw - 0.46, py + 0.46],
+    [px + 0.46, py + pd - 0.46],
+    [px + pw - 0.46, py + pd - 0.46]
+  ].forEach(function (a) {
+
+    Iso.box(ctx, {
+      x:a[0] - 0.16,
+      y:a[1] - 0.16,
+      z:plinthZ + kerbH,
+      w:0.32,
+      d:0.32,
+      h:0.06,
+      color:'#737d74'
+    });
+
+    Iso.cylinder(ctx, {
+      x:a[0],
+      y:a[1],
+      z:plinthZ + kerbH + 0.06,
+      r:0.045,
+      h:0.05,
+      color:'#b7aa6a'
+    });
+  });
+
+  /*
+   * Two restrained identification/status lamps.
+   * These are deliberately low-key; the machine should not become a
+   * glowing platform.
+   */
+  lamp(
+    px + pw * 0.50,
+    py + 0.10,
+    plinthZ + kerbH + 0.025,
+    0.035,
+    true,
+    '#9fcf70',
+    0.9
+  );
+
+  lamp(
+    px + pw * 0.50,
+    py + pd - 0.10,
+    plinthZ + kerbH + 0.025,
+    0.035,
+    true,
+    '#9fcf70',
+    0.9
+  );
+
+  /*
+   * Machinery elevation.
+   *
+   * Everything below this point is now built from the raised machinery
+   * deck instead of the factory floor.
+   */
+  var floorZ = plinthZ + kerbH;
+  var steelZ = floorZ + 0.12;
+
+
+  /* -----------------------------------------------------------------------
    * 1. STRUCTURAL GROUNDING
    *
-   * A few steel rails anchor the machinery to the floor without
-   * enclosing it.
-   * --------------------------------------------------------------- */
+   * Steel rails sit ON the plinth and establish the machinery's footprint.
+   * They do not form a casing.
+   * ----------------------------------------------------------------------- */
 
   Iso.box(ctx, {
     x:o.x + 0.20,
     y:o.y + 0.20,
-    z:0,
+    z:floorZ,
     w:W - 0.40,
     d:0.24,
     h:0.16,
@@ -3524,7 +3917,7 @@ function configValve(x, y, z, active, color) {
   Iso.box(ctx, {
     x:o.x + 0.20,
     y:o.y + D - 0.44,
-    z:0,
+    z:floorZ,
     w:W - 0.40,
     d:0.24,
     h:0.16,
@@ -3535,7 +3928,7 @@ function configValve(x, y, z, active, color) {
   Iso.box(ctx, {
     x:o.x + 0.20,
     y:o.y + 0.20,
-    z:0,
+    z:floorZ,
     w:0.20,
     d:D - 0.40,
     h:0.16,
@@ -3545,27 +3938,26 @@ function configValve(x, y, z, active, color) {
   Iso.box(ctx, {
     x:o.x + W - 0.40,
     y:o.y + 0.20,
-    z:0,
+    z:floorZ,
     w:0.20,
     d:D - 0.40,
     h:0.16,
     color:'#30373a'
   });
 
-  /* ---------------------------------------------------------------
+
+  /* -----------------------------------------------------------------------
    * 2. FREEZE GATE
    *
    * Incoming configuration changes encounter a physical barrier.
-   *
-   * The barrier is deliberately outside the machinery cluster so that
-   * the viewer immediately understands "entry is being stopped".
-   * --------------------------------------------------------------- */
+   * ----------------------------------------------------------------------- */
 
   var gateY = o.y + D * 0.18;
   var gateZ = steelZ;
 
   /* gate posts */
   [o.x + 0.75, o.x + W - 0.75].forEach(function (gx) {
+
     Iso.cylinder(ctx, {
       x:gx,
       y:gateY,
@@ -3598,6 +3990,7 @@ function configValve(x, y, z, active, color) {
 
   /* warning stripes */
   for (var g = 0; g < 7; g++) {
+
     var gx0 = o.x + 0.90 + g * ((W - 1.80) / 7);
 
     Iso.box(ctx, {
@@ -3633,13 +4026,14 @@ function configValve(x, y, z, active, color) {
     }
   );
 
-  /* ---------------------------------------------------------------
+
+  /* -----------------------------------------------------------------------
    * 3. STAGING HOPPER
    *
    * Configuration changes arriving during the freeze accumulate here.
    *
-   * This is intentionally a proper hopper rather than a box.
-   * --------------------------------------------------------------- */
+   * Proper hopper geometry rather than a rectangular container.
+   * ----------------------------------------------------------------------- */
 
   var hopperX = o.x + W * 0.25;
   var hopperY = o.y + D * 0.47;
@@ -3651,6 +4045,7 @@ function configValve(x, y, z, active, color) {
     [-0.48, 0.36],
     [ 0.48, 0.36]
   ].forEach(function (p) {
+
     Iso.box(ctx, {
       x:hopperX + p[0],
       y:hopperY + p[1],
@@ -3665,7 +4060,7 @@ function configValve(x, y, z, active, color) {
   /* hopper funnel */
   var hw = 1.45;
   var hd = 1.15;
-  var hz = 1.28;
+  var hz = steelZ + 0.98;
 
   Iso.poly(ctx, [
     P(hopperX - hw/2, hopperY - hd/2, hz),
@@ -3690,6 +4085,7 @@ function configValve(x, y, z, active, color) {
 
   /* parked configuration slats */
   for (var p = 0; p < 5; p++) {
+
     Iso.box(ctx, {
       x:hopperX - 0.42 + p * 0.21,
       y:hopperY,
@@ -3704,7 +4100,7 @@ function configValve(x, y, z, active, color) {
   stencil(
     hopperX - 0.60,
     hopperY + 0.78,
-    steelZ + 0.02,
+    floorZ + 0.02,
     'STAGE',
     {
       size:3.8,
@@ -3712,45 +4108,47 @@ function configValve(x, y, z, active, color) {
     }
   );
 
-  /* ---------------------------------------------------------------
+
+  /* -----------------------------------------------------------------------
    * 4. WINDOW TOKEN ROTATOR
    *
-   * The visual centrepiece.
+   * The visual centrepiece of Config Curator.
    *
-   * A large indexed wheel physically rotates through window positions.
-   * --------------------------------------------------------------- */
+   * This is intentionally larger than before so that the service feels
+   * like a substantial machine rather than a collection of props.
+   * ----------------------------------------------------------------------- */
 
   var rotX = o.x + W * 0.67;
   var rotY = o.y + D * 0.46;
 
   /* support frame */
   Iso.box(ctx, {
-    x:rotX - 0.72,
-    y:rotY - 0.52,
+    x:rotX - 0.82,
+    y:rotY - 0.58,
     z:steelZ,
-    w:1.44,
+    w:1.64,
     d:0.14,
-    h:1.85,
+    h:2.05,
     color:'#333a3e'
   });
 
   Iso.box(ctx, {
-    x:rotX + 0.58,
-    y:rotY - 0.52,
+    x:rotX + 0.68,
+    y:rotY - 0.58,
     z:steelZ,
     w:0.14,
-    d:1.04,
-    h:1.85,
+    d:1.16,
+    h:2.05,
     color:'#333a3e'
   });
 
-  /* wheel */
+  /* large indexed wheel */
   Iso.cylinder(ctx, {
     x:rotX,
     y:rotY,
-    z:steelZ + 1.05,
-    r:0.72,
-    h:0.20,
+    z:steelZ + 1.25,
+    r:0.92,
+    h:0.24,
     color:'#806936'
   });
 
@@ -3758,22 +4156,24 @@ function configValve(x, y, z, active, color) {
   Iso.cylinder(ctx, {
     x:rotX,
     y:rotY,
-    z:steelZ + 1.26,
-    r:0.21,
-    h:0.12,
+    z:steelZ + 1.49,
+    r:0.26,
+    h:0.14,
     color:'#c5a552'
   });
 
   /* six indexed positions */
   for (var q = 0; q < 6; q++) {
+
     var qa = q * Math.PI / 3;
-    var qx = rotX + Math.cos(qa) * 0.50;
-    var qy = rotY + Math.sin(qa) * 0.50;
+
+    var qx = rotX + Math.cos(qa) * 0.66;
+    var qy = rotY + Math.sin(qa) * 0.66;
 
     Iso.cylinder(ctx, {
       x:qx,
       y:qy,
-      z:steelZ + 1.31,
+      z:steelZ + 1.55,
       r:0.07,
       h:0.09,
       color:'#e2ce8d'
@@ -3784,7 +4184,7 @@ function configValve(x, y, z, active, color) {
   Iso.box(ctx, {
     x:rotX - 0.05,
     y:rotY + 0.72,
-    z:steelZ + 1.24,
+    z:steelZ + 1.48,
     w:0.10,
     d:0.48,
     h:0.08,
@@ -3795,7 +4195,7 @@ function configValve(x, y, z, active, color) {
   readout(
     rotX - 0.50,
     rotY - 0.90,
-    1.55,
+    1.75,
     1.05,
     0.34,
     ['WINDOW'],
@@ -3808,7 +4208,7 @@ function configValve(x, y, z, active, color) {
   stencil(
     rotX - 0.68,
     rotY + 1.10,
-    steelZ + 0.02,
+    floorZ + 0.02,
     'TOKEN',
     {
       size:4.0,
@@ -3816,14 +4216,12 @@ function configValve(x, y, z, active, color) {
     }
   );
 
-  /* ---------------------------------------------------------------
-   * 5. SHEDLOCK
+
+  /* -----------------------------------------------------------------------
+   * 5. SINGLE SHEDLOCK MECHANISM
    *
-   * Small mechanism, deliberately isolated.
-   *
-   * One physical lock is enough to communicate single-flight cron
-   * ownership.
-   * --------------------------------------------------------------- */
+   * Small but deliberately isolated.
+   * ----------------------------------------------------------------------- */
 
   var lockX = o.x + W * 0.84;
   var lockY = o.y + D * 0.25;
@@ -3882,7 +4280,7 @@ function configValve(x, y, z, active, color) {
   stencil(
     lockX - 0.40,
     lockY + 0.40,
-    steelZ + 0.02,
+    floorZ + 0.02,
     'LOCK',
     {
       size:3.6,
@@ -3890,19 +4288,21 @@ function configValve(x, y, z, active, color) {
     }
   );
 
-  /* ---------------------------------------------------------------
+
+  /* -----------------------------------------------------------------------
    * 6. NINE-WAY PARALLEL DISTRIBUTOR
    *
-   * This is a manifold, not a 3x3 light matrix.
-   * Nine actual outlet valves make the parallel bootstrap legible.
-   * --------------------------------------------------------------- */
+   * Nine actual outlet valves.
+   * ----------------------------------------------------------------------- */
 
   var mx = cx;
   var my = o.y + D * 0.78;
+
   var manifoldW = W - 1.20;
 
   /* support feet */
   for (var mf = 0; mf < 4; mf++) {
+
     var fx = o.x + 0.70 + mf * ((W - 1.40) / 3);
 
     Iso.box(ctx, {
@@ -3941,6 +4341,7 @@ function configValve(x, y, z, active, color) {
 
   /* nine outlets */
   for (var n = 0; n < 9; n++) {
+
     var nx = o.x + 0.78 + n * ((W - 1.56) / 8);
 
     configValve(
@@ -3967,7 +4368,7 @@ function configValve(x, y, z, active, color) {
   stencil(
     o.x + 0.60,
     my + 0.62,
-    steelZ + 0.03,
+    floorZ + 0.03,
     'BOOTSTRAP ×9',
     {
       size:3.7,
@@ -3975,12 +4376,13 @@ function configValve(x, y, z, active, color) {
     }
   );
 
-  /* ---------------------------------------------------------------
+
+  /* -----------------------------------------------------------------------
    * 7. REPLAY / RELEASE CONDUIT
    *
-   * Separate from the bootstrap manifold because replay is a different
-   * step in Flow E.
-   * --------------------------------------------------------------- */
+   * Separate physical mechanism because replay is distinct from the
+   * nine-way bootstrap distribution.
+   * ----------------------------------------------------------------------- */
 
   var rx = o.x + W * 0.84;
   var ry = o.y + D * 0.70;
@@ -4019,7 +4421,7 @@ function configValve(x, y, z, active, color) {
   stencil(
     rx - 0.55,
     ry + 1.32,
-    steelZ + 0.02,
+    floorZ + 0.02,
     'REPLAY',
     {
       size:3.7,
@@ -4027,11 +4429,13 @@ function configValve(x, y, z, active, color) {
     }
   );
 
-  /* ---------------------------------------------------------------
+
+  /* -----------------------------------------------------------------------
    * 8. CONTROL-STATE READOUT
    *
-   * Keep it physically subordinate to the machinery.
-   * --------------------------------------------------------------- */
+   * Physically subordinate to the machinery.
+   * It should read as instrumentation, not as the main object.
+   * ----------------------------------------------------------------------- */
 
   var readX = o.x + W * 0.42;
   var readY = o.y + D * 0.05;
@@ -4050,21 +4454,649 @@ function configValve(x, y, z, active, color) {
   );
 
   /* small status lamps */
-  lamp(readX + 1.70, readY + 0.15, 1.30, 0.05, true, '#6bd77b', 1.5);
-  lamp(readX + 1.95, readY + 0.15, 1.30, 0.05, true, '#d4aa45', 1.5);
+  lamp(
+    readX + 1.70,
+    readY + 0.15,
+    1.30,
+    0.05,
+    true,
+    '#6bd77b',
+    1.5
+  );
 
-  /* tiny machine identity stencil — deliberately not the primary label */
+  lamp(
+    readX + 1.95,
+    readY + 0.15,
+    1.30,
+    0.05,
+    true,
+    '#d4aa45',
+    1.5
+  );
+
+
+  /* -----------------------------------------------------------------------
+   * 9. MACHINE IDENTITY
+   *
+   * Keep this tiny. The machinery itself is the hero.
+   * ----------------------------------------------------------------------- */
+
   stencil(
     o.x + 0.25,
     o.y + D + 0.25,
-    0.03,
+    floorZ + 0.03,
     'EC-CONFIG-CURATOR',
     {
       size:3.2,
       color:'rgba(215,220,210,0.48)'
     }
   );
+
+
+  /* -----------------------------------------------------------------------
+   * 10. PLINTH IDENTITY MARK
+   *
+   * Very subtle architectural marking at the edge of the installation.
+   * This is deliberately not another large floating label.
+   * ----------------------------------------------------------------------- */
+
+  stencil(
+    px + 0.55,
+    py + pd - 0.05,
+    plinthZ + kerbH + 0.01,
+    'CONFIGURATION CONTROL',
+    {
+      size:2.7,
+      color:'rgba(159,207,112,0.45)'
+    }
+  );
 }
+
+//   function drawConfigCurator(o) {
+//     var b = sideFrame(o, 'config');
+//     var cs = b.cs;
+
+//     var floorZ = b.deck;
+//     var top = b.top;
+//     var sf = b.sf;
+
+//   /*
+//    * The service footprint is treated as an open machinery yard.
+//    * There is intentionally no drawSideBase(), no casing and no roof.
+//    *
+//    * Leave generous negative space between mechanisms. The viewer should
+//    * be able to visually isolate each operation when zoomed in.
+//    */
+
+//   var floorZ = 0.12;
+//   var steelZ = 0.30;
+
+//   var W = o.w;
+//   var D = o.d;
+
+//   var cx = o.x + W * 0.50;
+
+//   /* ---------------------------------------------------------------
+//    * 1. STRUCTURAL GROUNDING
+//    *
+//    * A few steel rails anchor the machinery to the floor without
+//    * enclosing it.
+//    * --------------------------------------------------------------- */
+
+//   Iso.box(ctx, {
+//     x:o.x + 0.20,
+//     y:o.y + 0.20,
+//     z:0,
+//     w:W - 0.40,
+//     d:0.24,
+//     h:0.16,
+//     color:'#252a2d'
+//   });
+
+//   Iso.box(ctx, {
+//     x:o.x + 0.20,
+//     y:o.y + D - 0.44,
+//     z:0,
+//     w:W - 0.40,
+//     d:0.24,
+//     h:0.16,
+//     color:'#252a2d'
+//   });
+
+//   /* vertical anchor rails */
+//   Iso.box(ctx, {
+//     x:o.x + 0.20,
+//     y:o.y + 0.20,
+//     z:0,
+//     w:0.20,
+//     d:D - 0.40,
+//     h:0.16,
+//     color:'#30373a'
+//   });
+
+//   Iso.box(ctx, {
+//     x:o.x + W - 0.40,
+//     y:o.y + 0.20,
+//     z:0,
+//     w:0.20,
+//     d:D - 0.40,
+//     h:0.16,
+//     color:'#30373a'
+//   });
+
+//   /* ---------------------------------------------------------------
+//    * 2. FREEZE GATE
+//    *
+//    * Incoming configuration changes encounter a physical barrier.
+//    *
+//    * The barrier is deliberately outside the machinery cluster so that
+//    * the viewer immediately understands "entry is being stopped".
+//    * --------------------------------------------------------------- */
+
+//   var gateY = o.y + D * 0.18;
+//   var gateZ = steelZ;
+
+//   /* gate posts */
+//   [o.x + 0.75, o.x + W - 0.75].forEach(function (gx) {
+//     Iso.cylinder(ctx, {
+//       x:gx,
+//       y:gateY,
+//       z:gateZ,
+//       r:0.13,
+//       h:1.15,
+//       color:'#30363a'
+//     });
+
+//     Iso.cylinder(ctx, {
+//       x:gx,
+//       y:gateY,
+//       z:gateZ + 1.15,
+//       r:0.08,
+//       h:0.16,
+//       color:'#c49b43'
+//     });
+//   });
+
+//   /* barrier arm */
+//   Iso.box(ctx, {
+//     x:o.x + 0.72,
+//     y:gateY - 0.045,
+//     z:gateZ + 0.92,
+//     w:W - 1.44,
+//     d:0.10,
+//     h:0.12,
+//     color:'#d0a33e'
+//   });
+
+//   /* warning stripes */
+//   for (var g = 0; g < 7; g++) {
+//     var gx0 = o.x + 0.90 + g * ((W - 1.80) / 7);
+
+//     Iso.box(ctx, {
+//       x:gx0,
+//       y:gateY - 0.06,
+//       z:gateZ + 0.93,
+//       w:0.16,
+//       d:0.12,
+//       h:0.13,
+//       color:'#292d30'
+//     });
+//   }
+
+//   /* gate status lamp */
+//   lamp(
+//     cx,
+//     gateY,
+//     gateZ + 1.45,
+//     0.09,
+//     true,
+//     '#e2ad35',
+//     3
+//   );
+
+//   stencil(
+//     o.x + 0.35,
+//     gateY - 0.38,
+//     gateZ + 0.02,
+//     'FREEZE',
+//     {
+//       size:4.1,
+//       color:'rgba(224,174,56,0.72)'
+//     }
+//   );
+
+//   /* ---------------------------------------------------------------
+//    * 3. STAGING HOPPER
+//    *
+//    * Configuration changes arriving during the freeze accumulate here.
+//    *
+//    * This is intentionally a proper hopper rather than a box.
+//    * --------------------------------------------------------------- */
+
+//   var hopperX = o.x + W * 0.25;
+//   var hopperY = o.y + D * 0.47;
+
+//   /* four support legs */
+//   [
+//     [-0.48,-0.36],
+//     [ 0.48,-0.36],
+//     [-0.48, 0.36],
+//     [ 0.48, 0.36]
+//   ].forEach(function (p) {
+//     Iso.box(ctx, {
+//       x:hopperX + p[0],
+//       y:hopperY + p[1],
+//       z:steelZ,
+//       w:0.12,
+//       d:0.12,
+//       h:1.05,
+//       color:'#3b4245'
+//     });
+//   });
+
+//   /* hopper funnel */
+//   var hw = 1.45;
+//   var hd = 1.15;
+//   var hz = 1.28;
+
+//   Iso.poly(ctx, [
+//     P(hopperX - hw/2, hopperY - hd/2, hz),
+//     P(hopperX + hw/2, hopperY - hd/2, hz),
+//     P(hopperX + 0.32, hopperY - 0.28, steelZ + 0.72),
+//     P(hopperX - 0.32, hopperY - 0.28, steelZ + 0.72)
+//   ], '#596269');
+
+//   Iso.poly(ctx, [
+//     P(hopperX + hw/2, hopperY - hd/2, hz),
+//     P(hopperX + hw/2, hopperY + hd/2, hz),
+//     P(hopperX + 0.32, hopperY + 0.28, steelZ + 0.72),
+//     P(hopperX + 0.32, hopperY - 0.28, steelZ + 0.72)
+//   ], '#464d52');
+
+//   Iso.poly(ctx, [
+//     P(hopperX - hw/2, hopperY + hd/2, hz),
+//     P(hopperX + hw/2, hopperY + hd/2, hz),
+//     P(hopperX + 0.32, hopperY + 0.28, steelZ + 0.72),
+//     P(hopperX - 0.32, hopperY + 0.28, steelZ + 0.72)
+//   ], '#51595e');
+
+//   /* parked configuration slats */
+//   for (var p = 0; p < 5; p++) {
+//     Iso.box(ctx, {
+//       x:hopperX - 0.42 + p * 0.21,
+//       y:hopperY,
+//       z:steelZ + 0.78 + (p % 2) * 0.05,
+//       w:0.14,
+//       d:0.58,
+//       h:0.07,
+//       color:'#c7a34c'
+//     });
+//   }
+
+//   stencil(
+//     hopperX - 0.60,
+//     hopperY + 0.78,
+//     steelZ + 0.02,
+//     'STAGE',
+//     {
+//       size:3.8,
+//       color:'rgba(207,168,70,0.72)'
+//     }
+//   );
+
+//   /* ---------------------------------------------------------------
+//    * 4. WINDOW TOKEN ROTATOR
+//    *
+//    * The visual centrepiece.
+//    *
+//    * A large indexed wheel physically rotates through window positions.
+//    * --------------------------------------------------------------- */
+
+//   var rotX = o.x + W * 0.67;
+//   var rotY = o.y + D * 0.46;
+
+//   /* support frame */
+//   Iso.box(ctx, {
+//     x:rotX - 0.72,
+//     y:rotY - 0.52,
+//     z:steelZ,
+//     w:1.44,
+//     d:0.14,
+//     h:1.85,
+//     color:'#333a3e'
+//   });
+
+//   Iso.box(ctx, {
+//     x:rotX + 0.58,
+//     y:rotY - 0.52,
+//     z:steelZ,
+//     w:0.14,
+//     d:1.04,
+//     h:1.85,
+//     color:'#333a3e'
+//   });
+
+//   /* wheel */
+//   Iso.cylinder(ctx, {
+//     x:rotX,
+//     y:rotY,
+//     z:steelZ + 1.05,
+//     r:0.72,
+//     h:0.20,
+//     color:'#806936'
+//   });
+
+//   /* wheel hub */
+//   Iso.cylinder(ctx, {
+//     x:rotX,
+//     y:rotY,
+//     z:steelZ + 1.26,
+//     r:0.21,
+//     h:0.12,
+//     color:'#c5a552'
+//   });
+
+//   /* six indexed positions */
+//   for (var q = 0; q < 6; q++) {
+//     var qa = q * Math.PI / 3;
+//     var qx = rotX + Math.cos(qa) * 0.50;
+//     var qy = rotY + Math.sin(qa) * 0.50;
+
+//     Iso.cylinder(ctx, {
+//       x:qx,
+//       y:qy,
+//       z:steelZ + 1.31,
+//       r:0.07,
+//       h:0.09,
+//       color:'#e2ce8d'
+//     });
+//   }
+
+//   /* mechanical index arm */
+//   Iso.box(ctx, {
+//     x:rotX - 0.05,
+//     y:rotY + 0.72,
+//     z:steelZ + 1.24,
+//     w:0.10,
+//     d:0.48,
+//     h:0.08,
+//     color:'#bca153'
+//   });
+
+//   /* token window */
+//   readout(
+//     rotX - 0.50,
+//     rotY - 0.90,
+//     1.55,
+//     1.05,
+//     0.34,
+//     ['WINDOW'],
+//     {
+//       size:4.4,
+//       color:'#e2c866'
+//     }
+//   );
+
+//   stencil(
+//     rotX - 0.68,
+//     rotY + 1.10,
+//     steelZ + 0.02,
+//     'TOKEN',
+//     {
+//       size:4.0,
+//       color:'rgba(225,199,99,0.72)'
+//     }
+//   );
+
+//   /* ---------------------------------------------------------------
+//    * 5. SHEDLOCK
+//    *
+//    * Small mechanism, deliberately isolated.
+//    *
+//    * One physical lock is enough to communicate single-flight cron
+//    * ownership.
+//    * --------------------------------------------------------------- */
+
+//   var lockX = o.x + W * 0.84;
+//   var lockY = o.y + D * 0.25;
+
+//   Iso.box(ctx, {
+//     x:lockX - 0.28,
+//     y:lockY - 0.28,
+//     z:steelZ,
+//     w:0.56,
+//     d:0.56,
+//     h:0.12,
+//     color:'#292f32'
+//   });
+
+//   /* lock body */
+//   Iso.cylinder(ctx, {
+//     x:lockX,
+//     y:lockY,
+//     z:steelZ + 0.14,
+//     r:0.24,
+//     h:0.35,
+//     color:'#9c7931'
+//   });
+
+//   /* shackle */
+//   Iso.cylinder(ctx, {
+//     x:lockX,
+//     y:lockY,
+//     z:steelZ + 0.49,
+//     r:0.15,
+//     h:0.12,
+//     color:'#d2ad54'
+//   });
+
+//   /* key slot */
+//   Iso.box(ctx, {
+//     x:lockX - 0.025,
+//     y:lockY - 0.04,
+//     z:steelZ + 0.50,
+//     w:0.05,
+//     d:0.10,
+//     h:0.03,
+//     color:'#292d30'
+//   });
+
+//   lamp(
+//     lockX,
+//     lockY,
+//     steelZ + 0.73,
+//     0.06,
+//     true,
+//     '#e1b84e',
+//     2.0
+//   );
+
+//   stencil(
+//     lockX - 0.40,
+//     lockY + 0.40,
+//     steelZ + 0.02,
+//     'LOCK',
+//     {
+//       size:3.6,
+//       color:'rgba(224,188,79,0.65)'
+//     }
+//   );
+
+//   /* ---------------------------------------------------------------
+//    * 6. NINE-WAY PARALLEL DISTRIBUTOR
+//    *
+//    * This is a manifold, not a 3x3 light matrix.
+//    * Nine actual outlet valves make the parallel bootstrap legible.
+//    * --------------------------------------------------------------- */
+
+//   var mx = cx;
+//   var my = o.y + D * 0.78;
+//   var manifoldW = W - 1.20;
+
+//   /* support feet */
+//   for (var mf = 0; mf < 4; mf++) {
+//     var fx = o.x + 0.70 + mf * ((W - 1.40) / 3);
+
+//     Iso.box(ctx, {
+//       x:fx,
+//       y:my,
+//       z:steelZ,
+//       w:0.12,
+//       d:0.12,
+//       h:0.68,
+//       color:'#3d4548'
+//     });
+//   }
+
+//   /* manifold body */
+//   Iso.box(ctx, {
+//     x:o.x + 0.60,
+//     y:my - 0.26,
+//     z:steelZ + 0.68,
+//     w:manifoldW,
+//     d:0.52,
+//     h:0.24,
+//     color:'#455c63'
+//   });
+
+//   /* inlet */
+//   configBeam(
+//     cx,
+//     my + 0.55,
+//     steelZ + 0.82,
+//     cx,
+//     my + 0.08,
+//     steelZ + 0.82,
+//     0.16,
+//     '#78959d'
+//   );
+
+//   /* nine outlets */
+//   for (var n = 0; n < 9; n++) {
+//     var nx = o.x + 0.78 + n * ((W - 1.56) / 8);
+
+//     configValve(
+//       nx,
+//       my + 0.03,
+//       steelZ + 0.92,
+//       true,
+//       '#69d879'
+//     );
+
+//     /* outlet pipe drops toward the factory */
+//     configBeam(
+//       nx,
+//       my + 0.03,
+//       steelZ + 0.62,
+//       nx,
+//       my + 0.03,
+//       steelZ + 0.15,
+//       0.075,
+//       '#607b82'
+//     );
+//   }
+
+//   stencil(
+//     o.x + 0.60,
+//     my + 0.62,
+//     steelZ + 0.03,
+//     'BOOTSTRAP ×9',
+//     {
+//       size:3.7,
+//       color:'rgba(131,190,193,0.72)'
+//     }
+//   );
+
+//   /* ---------------------------------------------------------------
+//    * 7. REPLAY / RELEASE CONDUIT
+//    *
+//    * Separate from the bootstrap manifold because replay is a different
+//    * step in Flow E.
+//    * --------------------------------------------------------------- */
+
+//   var rx = o.x + W * 0.84;
+//   var ry = o.y + D * 0.70;
+
+//   /* vertical release pipe */
+//   configBeam(
+//     rx,
+//     ry,
+//     steelZ + 0.15,
+//     rx,
+//     ry + 0.72,
+//     steelZ + 0.15,
+//     0.14,
+//     '#6c8588'
+//   );
+
+//   /* release valve */
+//   configValve(
+//     rx,
+//     ry + 0.76,
+//     steelZ + 0.12,
+//     true,
+//     '#7bd184'
+//   );
+
+//   /* outlet nozzle */
+//   Iso.cylinder(ctx, {
+//     x:rx,
+//     y:ry + 1.02,
+//     z:steelZ + 0.15,
+//     r:0.13,
+//     h:0.20,
+//     color:'#83999b'
+//   });
+
+//   stencil(
+//     rx - 0.55,
+//     ry + 1.32,
+//     steelZ + 0.02,
+//     'REPLAY',
+//     {
+//       size:3.7,
+//       color:'rgba(126,205,137,0.68)'
+//     }
+//   );
+
+//   /* ---------------------------------------------------------------
+//    * 8. CONTROL-STATE READOUT
+//    *
+//    * Keep it physically subordinate to the machinery.
+//    * --------------------------------------------------------------- */
+
+//   var readX = o.x + W * 0.42;
+//   var readY = o.y + D * 0.05;
+
+//   readout(
+//     readX,
+//     readY,
+//     1.25,
+//     1.55,
+//     0.42,
+//     ['FREEZE', 'WINDOW'],
+//     {
+//       size:4.4,
+//       color:'#b8c79e'
+//     }
+//   );
+
+//   /* small status lamps */
+//   lamp(readX + 1.70, readY + 0.15, 1.30, 0.05, true, '#6bd77b', 1.5);
+//   lamp(readX + 1.95, readY + 0.15, 1.30, 0.05, true, '#d4aa45', 1.5);
+
+//   /* tiny machine identity stencil — deliberately not the primary label */
+//   stencil(
+//     o.x + 0.25,
+//     o.y + D + 0.25,
+//     0.03,
+//     'EC-CONFIG-CURATOR',
+//     {
+//       size:3.2,
+//       color:'rgba(215,220,210,0.48)'
+//     }
+//   );
+// }
 
   /* ---- ec-manual-runs-service: the remediation bench --------------------
    * Athena is queried, not called — the readout is a query state. A
