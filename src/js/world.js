@@ -134,49 +134,49 @@
 
   var SIDE_STRUCTS = [
   { id:'portal',
-    x:1, y:22, w:9,d:5.5,h:3.5,
+    x:4, y:25, w:9,d:5.5,h:3.5,
     color:C.portal,
     label:'ea-ui-portal',
     sublabel:'reviewer portal · Flow G' },
 
-    {
-      id: 'reviewservice',
-      x: 9.5,
-      y: 23.5,
-      w: 9,
-      d: 6,
-      h: 3.4,
-      color: C.review,
-      label: 'ec-review-service',
-      sublabel: 'entitlements & pipelines'
-    },
+  {
+    id:'reviewservice',
+    x:17,
+    y:25,
+    w:9,
+    d:6,
+    h:3.4,
+    color:C.review,
+    label:'ec-review-service',
+    sublabel:'entitlements & pipelines'
+  },
 
-    {
-      id: 'actioningservice',
-      x: 9.5,
-      y: 38,
-      w: 9,
-      d: 7.5,
-      h: 3.6,
-      color: C.actioning,
-      label: 'conduct-actioning-service',
-      sublabel: 'disposition executor'
-    },
+  {
+    id:'actioningservice',
+    x:30,
+    y:25,
+    w:9,
+    d:7.5,
+    h:3.6,
+    color:C.actioning,
+    label:'conduct-actioning-service',
+    sublabel:'disposition executor'
+  },
 
   { id:'externalapi',
-    x:14, y:29.5, w:9,d:5.5,h:3,
+    x:4, y:36.5, w:9,d:5.5,h:3,
     color:C.externalapi,
     label:'ep-conduct-external-api',
     sublabel:'external API gateway' },
 
   { id:'manualruns',
-    x:1, y:37.5, w:7,d:5.5,h:3.2,
+    x:17, y:37, w:9,d:5.5,h:3.2,
     color:C.manualruns,
     label:'ec-manual-runs-service',
     sublabel:'re-processing · Flow F' },
 
   { id:'config',
-    x:14, y:37.5, w:8.8,d:6.5,h:4.0,
+    x:30, y:37, w:9,d:6.5,h:4.0,
     color:C.config,
     label:'ec-config-curator',
     sublabel:'configuration control · Flow E' }
@@ -333,7 +333,7 @@
     },
     // side structure narrations
     {
-      id:'config', name:'ec-config-curator', x:17.5, y:40.25, r:4.5, color:C.config,
+      id:'config', name:'ec-config-curator', x:18, y:43, r:3.5, color:C.config,
       tag:'control room · window rotation · ShedLock freeze · Flow E',
       short:'ec-config-curator orchestrates the daily configuration boundary: it freezes incoming changes, rotates the window token across all data-plane services, and replays parked changes when the gate reopens.',
       body:'Once a day, per tenant, the freeze gate closes and all arriving configuration changes are parked in a staging store. ' +
@@ -344,7 +344,7 @@
         'Cron: 0 */15 * * * * (evaluated every 15 minutes, fires once at each tenant\'s daily boundary).'
     },
     {
-      id:'manualruns', name:'ec-manual-runs-service', x:4.5, y:40.25, r:4.5, color:C.manualruns,
+      id:'manualruns', name:'ec-manual-runs-service', x:30, y:53, r:3.5, color:C.manualruns,
       tag:'re-processing · Athena query · chunk strategy · Flow F',
       short:'ec-manual-runs-service re-processes historical communications through the surveillance pipeline on demand, using Athena to query the archive and streaming CSV results in parallel byte-range chunks.',
       body:'A compliance officer submits a run via POST /v1/tenants/{tenantName}/manual-runs. ' +
@@ -355,7 +355,7 @@
         'Scaling: minReplicas 3, maxReplicas 10, lagThreshold 100.'
     },
     {
-      id:'reviewservice', name:'ec-review-service', x:18, y:24.5, r:3.5, color:C.review,
+      id:'reviewservice', name:'ec-review-service', x:30, y:43, r:3.5, color:C.review,
       tag:'reviewer entitlements · pipeline-group bindings',
       short:'ec-review-service is the entitlement authority for the review interface: it maps reviewers to their pipeline IDs and manages reviewer groups, pipeline bindings, and supervision queue configuration.',
       body:'ea-ui-portal calls this service to resolve a reviewer\'s entitled pipeline IDs when reviewer groups are enabled. ' +
@@ -363,7 +363,7 @@
         'It owns no surveillance logic and does not participate in the data path — it is a configuration service queried on the review path.'
     },
     {
-      id:'portal', name:'ea-ui-portal', x:5.5, y:24.75, r:5.0, color:C.portal,
+      id:'portal', name:'ea-ui-portal', x:42, y:53, r:3.5, color:C.portal,
       tag:'reviewer web application · Flow G entry',
       short:'ea-ui-portal is the reviewer\'s and administrator\'s web application: it lists queues, renders alerted communications with matched phrases highlighted, and dispatches reviewer dispositions to the actioning tier.',
       body:'When a reviewer dispositions an alert, the portal calls the conduct-actioning library (in-process) which decides the tier topic based on selection size: small ≤20, medium 21–50, large >50 documents. ' +
@@ -373,7 +373,7 @@
         'Scaling: 3–9 replicas, CPU and memory triggers (not Kafka lag), pollingInterval 20 s.'
     },
     {
-      id:'externalapi', name:'ep-conduct-external-api', x:18.5, y:32.25, r:4.0, color:C.externalapi,
+      id:'externalapi', name:'ep-conduct-external-api', x:18, y:53, r:3.5, color:C.externalapi,
       tag:'customer REST gateway · bulk actions · OAuth2/JWT',
       short:'ep-conduct-external-api is the customer-facing REST gateway for Conduct administration: reviewer groups, review entitlements, pipeline bindings, add-to-queue requests, and bulk actions. Every request is OAuth2/JWT authenticated.',
       body:'It owns no surveillance logic; it validates, audits every API interaction into app_audit_new, and forwards to ec-review-service and conduct-actioning-service. ' +
@@ -382,7 +382,7 @@
         'Scaling: 3–6 replicas, CPU 50% / memory 75% targets.'
     },
     {
-      id:'actioningservice', name:'conduct-actioning-service', x:5.5, y:32.75, r:4.5, color:C.actioning,
+      id:'actioningservice', name:'conduct-actioning-service', x:42, y:43, r:3.5, color:C.actioning,
       tag:'disposition executor · Mongo + ES two-store write · Flow G',
       short:'conduct-actioning-service executes what a reviewer decided: it applies the disposition to the supervised_item MongoDB document and to the Elasticsearch review index, then rolls up supervision metrics.',
       body:'It is the only service in the platform that mutates records another service created — ec-alerting-service wrote supervised_item and ec-indexer wrote the ES review document; conduct-actioning-service updates both. ' +
@@ -782,17 +782,17 @@
 
     /* Crate pallets — staged document batches waiting on floor space. */
     [[10, 14], [20, 15.5], [30, 14.5], [42, 15.5], [50, 20],
-     [20, 36], [28, 42], [46, 36], [56, 40], [8, 46],
-     [60, 34], [46, 24], [22, 22], [16, 20], [36, 20], [58, 16],
-     [24, 34], [40, 36], [52, 24], [18, 44], [44, 44], [30, 44],
-     [62, 30], [12, 34], [50, 34]].forEach(function (p, j) {
-      if (!blocked(p[0], p[1], 0)) props.push({ kind: 'pallet', x: p[0], y: p[1], seed: j });
-    });
+      [20, 36], [46, 36], [56, 40], [8, 46],
+      [60, 34], [46, 24], [22, 22], [16, 20], [36, 20], [58, 16],
+      [24, 34], [40, 36], [52, 24],
+      [62, 30], [12, 34], [50, 34]].forEach(function (p, j) {
+        if (!blocked(p[0], p[1], 0)) props.push({ kind: 'pallet', x: p[0], y: p[1], seed: j });
+      });
 
     /* Equipment cabinets: the stores and switchgear the services run on. */
-    [[6, 24], [6, 34], [58, 22], [62, 40], [30, 24], [42, 42],
-     [18, 24], [26, 16], [48, 16], [60, 26], [16, 42], [56, 34],
-     [38, 42], [22, 30], [50, 30]].forEach(function (p, j) {
+    [[6, 24], [6, 34], [58, 22], [62, 40], [30, 24],
+      [18, 24], [26, 16], [48, 16], [60, 26],
+      [56, 34], [22, 30], [50, 30]].forEach(function (p, j) {
       if (!blocked(p[0], p[1], 0.4)) props.push({ kind: 'cabinet', x: p[0], y: p[1], seed: j });
     });
 
