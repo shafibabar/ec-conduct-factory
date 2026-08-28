@@ -139,17 +139,29 @@
     label:'ea-ui-portal',
     sublabel:'reviewer portal · Flow G' },
 
-  { id:'reviewservice',
-    x:14, y:22, w:8,d:5,h:3,
-    color:C.review,
-    label:'ec-review-service',
-    sublabel:'entitlements & pipelines' },
+    {
+      id: 'reviewservice',
+      x: 9.5,
+      y: 23.5,
+      w: 9,
+      d: 6,
+      h: 3.4,
+      color: C.review,
+      label: 'ec-review-service',
+      sublabel: 'entitlements & pipelines'
+    },
 
-  { id:'actioningservice',
-    x:1, y:29.5, w:9,d:6.5,h:3.2,
-    color:C.actioning,
-    label:'conduct-actioning-service',
-    sublabel:'disposition executor' },
+    {
+      id: 'actioningservice',
+      x: 9.5,
+      y: 38,
+      w: 9,
+      d: 7.5,
+      h: 3.6,
+      color: C.actioning,
+      label: 'conduct-actioning-service',
+      sublabel: 'disposition executor'
+    },
 
   { id:'externalapi',
     x:14, y:29.5, w:9,d:5.5,h:3,
