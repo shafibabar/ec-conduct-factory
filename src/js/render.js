@@ -3767,7 +3767,7 @@ function drawConfigCurator(o) {
     w:pw,
     d:pd,
     h:foundationH,
-    color:'#18271b'
+    color:'#536b5a'
   });
 
   /* inset raised machinery deck */
@@ -3778,7 +3778,7 @@ function drawConfigCurator(o) {
     w:pw - 0.40,
     d:pd - 0.40,
     h:deckH,
-    color:'#263d2a'
+    color:'#667b6b'
   });
 
   var plinthZ = foundationH + deckH;
@@ -3793,7 +3793,7 @@ function drawConfigCurator(o) {
     w:pw - 0.40,
     d:kerbW,
     h:kerbH,
-    color:'#34563a'
+    color:'#405b48'
   });
 
   /* north / far edge */
@@ -3804,7 +3804,7 @@ function drawConfigCurator(o) {
     w:pw - 0.40,
     d:kerbW,
     h:kerbH,
-    color:'#34563a'
+    color:'#405b48'
   });
 
   /* west edge */
@@ -3815,7 +3815,7 @@ function drawConfigCurator(o) {
     w:kerbW,
     d:pd - 0.40,
     h:kerbH,
-    color:'#34563a'
+    color:'#405b48'
   });
 
   /* east edge */
@@ -3826,7 +3826,7 @@ function drawConfigCurator(o) {
     w:kerbW,
     d:pd - 0.40,
     h:kerbH,
-    color:'#34563a'
+    color:'#405b48'
   });
 
   /*
@@ -4431,48 +4431,588 @@ function drawConfigCurator(o) {
 
 
   /* -----------------------------------------------------------------------
-   * 8. CONTROL-STATE READOUT
+   * 8. PHYSICAL INDUSTRIAL HMI
    *
-   * Physically subordinate to the machinery.
-   * It should read as instrumentation, not as the main object.
+   * This is deliberately built as a piece of machinery, not a floating
+   * readout. It has:
+   *
+   *   - heavy rear mounting frame
+   *   - lower equipment cabinet
+   *   - angled HMI face
+   *   - recessed black display
+   *   - bezel
+   *   - individual screen rows
+   *   - physical status LEDs
+   *   - rotary selector
+   *   - emergency stop
+   *   - lower service panel
+   *   - cable conduit
+   *
+   * The display remains readable when zoomed in because the physical
+   * structure is substantially larger than the old readout.
    * ----------------------------------------------------------------------- */
 
-  var readX = o.x + W * 0.42;
-  var readY = o.y + D * 0.05;
+  var s = Sim.state;
 
-  readout(
-    readX,
-    readY,
-    1.25,
-    1.55,
-    0.42,
-    ['FREEZE', 'WINDOW'],
+  var windowToken = s.windowToken || EC.WINDOW_TOKEN || '—';
+  var participants = s.participants || 0;
+  var pipelines = s.pipelineIds || s.pipelineCount || 0;
+  var sampled = s.sampled ? 'YES' : 'NO';
+  var trips = s.trips || 0;
+
+  /*
+   * HMI location.
+   *
+   * Deliberately moved toward the rear/centre of the installation so it
+   * does not obscure the token rotator or nine-way distributor.
+   */
+  var hmiX = o.x + W * 0.43;
+  var hmiY = o.y + D * 0.02;
+
+  var hmiZ = floorZ;
+
+  /*
+   * ---------------------------------------------------------------------
+   * 8.1 CAST / CONTACT SHADOW
+   *
+   * A broad dark footprint immediately beneath the HMI gives the cabinet
+   * physical weight instead of making it appear pasted onto the deck.
+   * ---------------------------------------------------------------------
+   */
+
+  // ctx.fillStyle = 'rgba(8,12,10,0.28)';
+  // Iso.disc(ctx, hmiX + 0.10, hmiY + 0.12, hmiZ + 0.015, 1.55);
+
+  /*
+   * ---------------------------------------------------------------------
+   * 8.2 REAR SUPPORT FRAME
+   * ---------------------------------------------------------------------
+   */
+
+  /* rear vertical spine */
+  Iso.box(ctx, {
+    x:hmiX - 0.86,
+    y:hmiY + 0.18,
+    z:hmiZ,
+    w:0.18,
+    d:0.18,
+    h:2.05,
+    color:'#30383a'
+  });
+
+  /* upper cross member */
+  Iso.box(ctx, {
+    x:hmiX - 0.90,
+    y:hmiY + 0.12,
+    z:hmiZ + 1.92,
+    w:1.82,
+    d:0.18,
+    h:0.16,
+    color:'#3e4748'
+  });
+
+  /* lower cross member */
+  Iso.box(ctx, {
+    x:hmiX - 0.92,
+    y:hmiY + 0.08,
+    z:hmiZ + 0.32,
+    w:1.86,
+    d:0.20,
+    h:0.14,
+    color:'#252c2e'
+  });
+
+  /*
+   * diagonal braces
+   *
+   * These are simple physical rails rather than another solid box.
+   */
+  configBeam(
+    hmiX - 0.72,
+    hmiY + 0.16,
+    hmiZ + 0.38,
+    hmiX - 0.20,
+    hmiY + 0.16,
+    hmiZ + 1.82,
+    0.075,
+    '#596568'
+  );
+
+  configBeam(
+    hmiX + 0.70,
+    hmiY + 0.16,
+    hmiZ + 0.38,
+    hmiX + 0.20,
+    hmiY + 0.16,
+    hmiZ + 1.82,
+    0.075,
+    '#596568'
+  );
+
+  /*
+   * ---------------------------------------------------------------------
+   * 8.3 MAIN HMI CABINET
+   * ---------------------------------------------------------------------
+   */
+
+  /* lower shadowed cabinet */
+  Iso.box(ctx, {
+    x: hmiX - 0.86,
+    y: hmiY - 0.02,
+    z: hmiZ + 0.28,
+    w: 2.15,
+    d: 0.82,
+    h: 0.78,
+    color: '#30383a'
+  });
+
+  /* cabinet front skin */
+  Iso.box(ctx, {
+    x: hmiX - 0.79,
+    y: hmiY - 0.10,
+    z: hmiZ + 0.36,
+    w: 2.00,
+    d: 0.08,
+    h: 0.64,
+    color: '#4a5657'
+  });
+
+  /* cabinet top */
+  Iso.box(ctx, {
+    x:hmiX - 0.86,
+    y:hmiY - 0.04,
+    z:hmiZ + 0.98,
+    w:1.72,
+    d:0.72,
+    h:0.10,
+    color:'#697574'
+  });
+
+  /* cabinet lower plinth */
+  Iso.box(ctx, {
+    x:hmiX - 0.94,
+    y:hmiY - 0.08,
+    z:hmiZ + 0.20,
+    w:1.88,
+    d:0.82,
+    h:0.12,
+    color:'#252b2c'
+  });
+
+  /*
+   * Cabinet front seam.
+   */
+  Iso.box(ctx, {
+    x:hmiX - 0.72,
+    y:hmiY - 0.145,
+    z:hmiZ + 0.40,
+    w:1.44,
+    d:0.025,
+    h:0.025,
+    color:'#1c2224'
+  });
+
+  /*
+   * ---------------------------------------------------------------------
+   * 8.4 UPPER HMI HEAD
+   *
+   * The screen is intentionally raised and tilted slightly toward the
+   * viewer. It reads as a real operator console rather than a sign.
+   * ---------------------------------------------------------------------
+   */
+
+  var screenZ = hmiZ + 1.20;
+
+  /* rear housing */
+  Iso.box(ctx, {
+    x:hmiX - 0.82,
+    y:hmiY - 0.03,
+    z:screenZ,
+    w:1.64,
+    d:0.30,
+    h:0.92,
+    color:'#252c2e'
+  });
+
+  /* outer bezel */
+  Iso.box(ctx, {
+    x:hmiX - 0.74,
+    y:hmiY - 0.22,
+    z:screenZ + 0.08,
+    w:1.48,
+    d:0.12,
+    h:0.76,
+    color:'#687373'
+  });
+
+  /* black recessed screen */
+  Iso.box(ctx, {
+    x:hmiX - 0.62,
+    y:hmiY - 0.285,
+    z:screenZ + 0.18,
+    w:1.24,
+    d:0.035,
+    h:0.56,
+    color:'#101719'
+  });
+
+  /*
+   * Screen inner glass.
+   */
+  Iso.box(ctx, {
+    x:hmiX - 0.56,
+    y:hmiY - 0.31,
+    z:screenZ + 0.24,
+    w:1.12,
+    d:0.018,
+    h:0.44,
+    color:'#172527'
+  });
+
+  /*
+   * ---------------------------------------------------------------------
+   * 8.5 HMI SCREEN CONTENT
+   *
+   * Do not use readout() here. The information is painted into the
+   * physical screen so the screen remains part of the machine.
+   * ---------------------------------------------------------------------
+   */
+
+  var sx = hmiX - 0.52;
+  var sy = hmiY - 0.335;
+
+  stencil(
+    sx,
+    sy + 0.48,
+    screenZ + 0.48,
+    'CONFIG CONTROL',
     {
-      size:4.4,
-      color:'#b8c79e'
+      size: 4.8,
+      color: 'rgba(150,220,170,0.95)'
     }
   );
 
-  /* small status lamps */
+  /* screen separator */
+  Iso.box(ctx, {
+    x: hmiX - 0.55,
+    y: hmiY - 0.345,
+    z: screenZ + 0.41,
+    w: 1.10,
+    d: 0.012,
+    h: 0.018,
+    color: '#35594c'
+  });
+
+  /* primary telemetry */
+  stencil(
+    sx,
+    sy + 0.29,
+    screenZ + 0.46,
+    'WINDOW  ' + windowToken,
+    {
+      size: 3.8,
+      color: 'rgba(205,225,210,0.90)'
+    }
+  );
+
+  stencil(
+    sx,
+    sy + 0.14,
+    screenZ + 0.46,
+    'PARTS   ' + participants,
+    {
+      size: 3.8,
+      color: 'rgba(205,225,210,0.90)'
+    }
+  );
+
+  stencil(
+    sx,
+    sy - 0.01,
+    screenZ + 0.46,
+    'PIPE    ' + pipelines,
+    {
+      size: 3.8,
+      color: 'rgba(205,225,210,0.90)'
+    }
+  );
+
+  stencil(
+    sx,
+    sy - 0.16,
+    screenZ + 0.46,
+    sampled === 'YES' ? 'SYSTEM  ACTIVE' : 'SYSTEM  IDLE',
+    {
+      size: 3.8,
+      color: sampled === 'YES'
+        ? 'rgba(105,220,125,0.95)'
+        : 'rgba(210,130,95,0.90)'
+    }
+  );
+
+  /* tiny activity indicator */
+  for (var hb = 0; hb < 6; hb++) {
+
+    Iso.box(ctx, {
+      x: hmiX - 0.50 + hb * 0.16,
+      y: hmiY - 0.35,
+      z: screenZ + 0.25,
+      w: 0.09,
+      d: 0.018,
+      h: 0.05 + (hb % 3) * 0.025,
+      color: hb < 4 ? '#6fc487' : '#c69b48'
+    });
+  }
+
+  /*
+   * ---------------------------------------------------------------------
+   * 8.6 PHYSICAL CONTROL STRIP
+   * ---------------------------------------------------------------------
+   */
+
+  /* dark control fascia */
+  Iso.box(ctx, {
+    x:hmiX - 0.72,
+    y:hmiY - 0.31,
+    z:hmiZ + 0.38,
+    w:1.44,
+    d:0.035,
+    h:0.14,
+    color:'#202729'
+  });
+
+  /*
+   * Three physical status lamps.
+   */
   lamp(
-    readX + 1.70,
-    readY + 0.15,
-    1.30,
-    0.05,
+    hmiX - 0.48,
+    hmiY - 0.36,
+    hmiZ + 0.48,
+    0.055,
     true,
     '#6bd77b',
-    1.5
+    1.8
   );
 
   lamp(
-    readX + 1.95,
-    readY + 0.15,
-    1.30,
-    0.05,
+    hmiX - 0.22,
+    hmiY - 0.36,
+    hmiZ + 0.48,
+    0.055,
     true,
     '#d4aa45',
-    1.5
+    1.6
   );
+
+  lamp(
+    hmiX + 0.04,
+    hmiY - 0.36,
+    hmiZ + 0.48,
+    0.055,
+    true,
+    sampled ? '#6bd77b' : '#c45e4d',
+    1.8
+  );
+
+  /*
+   * Rotary selector.
+   */
+  Iso.cylinder(ctx, {
+    x:hmiX + 0.36,
+    y:hmiY - 0.36,
+    z:hmiZ + 0.42,
+    r:0.105,
+    h:0.08,
+    color:'#727b79'
+  });
+
+  Iso.cylinder(ctx, {
+    x:hmiX + 0.36,
+    y:hmiY - 0.36,
+    z:hmiZ + 0.50,
+    r:0.065,
+    h:0.07,
+    color:'#b5a45f'
+  });
+
+  /* selector pointer */
+  Iso.box(ctx, {
+    x:hmiX + 0.35,
+    y:hmiY - 0.39,
+    z:hmiZ + 0.57,
+    w:0.025,
+    d:0.10,
+    h:0.025,
+    color:'#1e2425'
+  });
+
+  /*
+   * ---------------------------------------------------------------------
+   * 8.7 EMERGENCY STOP
+   * ---------------------------------------------------------------------
+   */
+
+  /* mounting plate */
+  Iso.box(ctx, {
+    x:hmiX + 0.57,
+    y:hmiY - 0.35,
+    z:hmiZ + 0.37,
+    w:0.22,
+    d:0.06,
+    h:0.22,
+    color:'#454d4d'
+  });
+
+  /* red mushroom head */
+  Iso.cylinder(ctx, {
+    x:hmiX + 0.68,
+    y:hmiY - 0.39,
+    z:hmiZ + 0.55,
+    r:0.105,
+    h:0.11,
+    color:'#a83d35'
+  });
+
+  Iso.cylinder(ctx, {
+    x:hmiX + 0.68,
+    y:hmiY - 0.39,
+    z:hmiZ + 0.65,
+    r:0.075,
+    h:0.055,
+    color:'#d05043'
+  });
+
+  /*
+   * ---------------------------------------------------------------------
+   * 8.8 CABINET DETAILS
+   * ---------------------------------------------------------------------
+   */
+
+  /* ventilation slots */
+  for (var vent = 0; vent < 5; vent++) {
+    Iso.box(ctx, {
+      x:hmiX - 0.58 + vent * 0.20,
+      y:hmiY - 0.16,
+      z:hmiZ + 0.58,
+      w:0.11,
+      d:0.018,
+      h:0.035,
+      color:'#1e2527'
+    });
+  }
+
+  /* lower service door */
+  Iso.box(ctx, {
+    x:hmiX - 0.55,
+    y:hmiY - 0.17,
+    z:hmiZ + 0.29,
+    w:0.72,
+    d:0.025,
+    h:0.035,
+    color:'#596362'
+  });
+
+  /* service-door handle */
+  Iso.box(ctx, {
+    x:hmiX - 0.01,
+    y:hmiY - 0.20,
+    z:hmiZ + 0.30,
+    w:0.18,
+    d:0.018,
+    h:0.025,
+    color:'#202627'
+  });
+
+  /*
+   * ---------------------------------------------------------------------
+   * 8.9 CABLE / POWER CONDUIT
+   *
+   * The HMI should visibly connect to the machinery instead of appearing
+   * magically powered.
+   * ---------------------------------------------------------------------
+   */
+
+  configBeam(
+    hmiX + 0.76,
+    hmiY + 0.22,
+    hmiZ + 0.30,
+    hmiX + 1.18,
+    hmiY + 0.48,
+    hmiZ + 0.30,
+    0.065,
+    '#4f6263'
+  );
+
+  configBeam(
+    hmiX + 1.18,
+    hmiY + 0.48,
+    hmiZ + 0.30,
+    hmiX + 1.18,
+    hmiY + 0.95,
+    hmiZ + 0.30,
+    0.065,
+    '#4f6263'
+  );
+
+  /*
+   * ---------------------------------------------------------------------
+   * 8.10 HMI IDENTIFICATION
+   * ---------------------------------------------------------------------
+   */
+
+  stencil(
+    hmiX - 0.58,
+    hmiY - 0.23,
+    hmiZ + 1.05,
+    'HMI',
+    {
+      size:3.4,
+      color:'rgba(210,220,212,0.65)'
+    }
+  );
+
+  stencil(
+    hmiX + 0.15,
+    hmiY - 0.23,
+    hmiZ + 1.05,
+    'CONFIG',
+    {
+      size:3.1,
+      color:'rgba(160,207,176,0.55)'
+    }
+  );
+
+  /*
+   * ---------------------------------------------------------------------
+   * 8.11 FLOOR ANCHORS
+   * ---------------------------------------------------------------------
+   */
+
+  [
+    [hmiX - 0.72, hmiY + 0.42],
+    [hmiX + 0.72, hmiY + 0.42]
+  ].forEach(function (a) {
+
+    Iso.box(ctx, {
+      x:a[0] - 0.11,
+      y:a[1] - 0.11,
+      z:hmiZ + 0.01,
+      w:0.22,
+      d:0.22,
+      h:0.06,
+      color:'#3c4645'
+    });
+
+    Iso.cylinder(ctx, {
+      x:a[0],
+      y:a[1],
+      z:hmiZ + 0.07,
+      r:0.035,
+      h:0.035,
+      color:'#b4a05b'
+    });
+
+  });
 
 
   /* -----------------------------------------------------------------------
